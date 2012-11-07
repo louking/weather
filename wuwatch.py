@@ -5,6 +5,7 @@
 #	Date		Author		Reason
 #	----		------		------
 #	10/02/12	Lou King	Create
+#   11/05/12    Lou King    Add window persistence
 #
 # ##########################################################################################
 '''
@@ -25,6 +26,8 @@ import xml.etree.ElementTree as ET
 
 # other
 import wx
+from wx.lib.agw.persist.persistencemanager import PersistenceManager
+from wx.lib.agw.persist.persist_handlers import AbstractHandler,TLWHandler
 
 # home grown
 
@@ -196,6 +199,33 @@ class IconText:
         return self.icon
         
 ########################################################################
+class MyFormHandler(AbstractHandler):
+########################################################################
+    """
+    not used, trying TLWHandler instead
+    """
+    #----------------------------------------------------------------------
+    def __init__(self, pObject):
+    #----------------------------------------------------------------------
+        AbstractHandler.__init__(self, pObject)
+
+    #----------------------------------------------------------------------
+    def GetKind(self):
+    #----------------------------------------------------------------------
+        return PERSIST_FORM_KIND
+        
+    #----------------------------------------------------------------------
+    def Save(self):
+    #----------------------------------------------------------------------
+        frame, obj = self._window, self._pObject
+        obj.SaveValue(PERSIST_FORM_POSITION, frame.GetPosition())
+
+    #----------------------------------------------------------------------
+    def Restore(self):
+    #----------------------------------------------------------------------
+        pass
+    
+########################################################################
 class MyForm(wx.Frame):
 ########################################################################
  
@@ -208,9 +238,23 @@ class MyForm(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.onClose)
         self.Bind(wx.EVT_ICONIZE, self.onIconize)
         self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
-        self.Show(False)    # start without showing form
         
         self.st = wx.StaticText(self) # static text widget
+        
+        self.SetName('wunderground details')
+        self.pm = PersistenceManager()
+        self.pm.Register(self,persistenceHandler=TLWHandler)
+        check = self.pm.Restore(self)
+        print ('Restore returned {0}\n'.format(check))
+        pdb.set_trace()
+        
+        self.Show(False)    # start without showing form
+        
+    #----------------------------------------------------------------------
+    def __destroy__(self):
+    #----------------------------------------------------------------------
+        
+        self.pm.SaveAndUnregister(self)
         
     #----------------------------------------------------------------------
     def onIconize(self, evt):
