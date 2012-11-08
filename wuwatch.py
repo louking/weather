@@ -1,13 +1,13 @@
 #!/usr/bin/python
-# ##########################################################################################
-#	wuwatch - display weather underground data
+###########################################################################################
+#   wuwatch - display weather underground data
 #
-#	Date		Author		Reason
-#	----		------		------
-#	10/02/12	Lou King	Create
+#   Date		Author		Reason
+#   ----		------		------
+#   10/02/12	Lou King	Create
 #   11/05/12    Lou King    Add window persistence
 #
-# ##########################################################################################
+###########################################################################################
 '''
 wuwatch - display weather underground data
 ==============================================
@@ -20,12 +20,11 @@ import urllib2
 import xml.etree.ElementTree as ET
 
 # pypi
-#import Image, ImageDraw, ImageFont, ImageColor	# PIL
 
 # github
 
 # other
-import wx
+import wx   # http://wxpython.org/download.php#stable
 from wx.lib.agw.persist.persistencemanager import PersistenceManager
 from wx.lib.agw.persist.persist_handlers import AbstractHandler,TLWHandler
 
@@ -239,21 +238,23 @@ class MyForm(wx.Frame):
         self.Bind(wx.EVT_ICONIZE, self.onIconize)
         self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
         
+        self.debug = False
+
         self.st = wx.StaticText(self) # static text widget
         
         self.SetName('wunderground details')
         self.pm = PersistenceManager()
         self.pm.Register(self,persistenceHandler=TLWHandler)
         check = self.pm.Restore(self)
-        print ('Restore returned {0}\n'.format(check))
-        pdb.set_trace()
+        if self.debug: print ('Position at MyForm.__init__ is {0}'.format(self.GetPosition()))
         
         self.Show(False)    # start without showing form
         
     #----------------------------------------------------------------------
-    def __destroy__(self):
+    def shutdown(self):
     #----------------------------------------------------------------------
         
+        if self.debug: print ('Position at MyForm.shutdown is {0}'.format(self.GetPosition()))
         self.pm.SaveAndUnregister(self)
         
     #----------------------------------------------------------------------
@@ -263,6 +264,7 @@ class MyForm(wx.Frame):
         Leave only the systray icon
         """
         #self.onClose(evt)
+        if self.debug: print ('Position at MyForm.onIconize is {0}'.format(self.GetPosition()))
         self.Show(False)
  
     #----------------------------------------------------------------------
@@ -271,6 +273,7 @@ class MyForm(wx.Frame):
         """
         Show the frame 
         """
+        if self.debug: print ('Position at MyForm.onMaximize is {0}'.format(self.GetPosition()))
         self.Show(True)
  
     #----------------------------------------------------------------------
@@ -348,7 +351,7 @@ class MyIcon(wx.TaskBarIcon):
     #----------------------------------------------------------------------
         """"""
         #self.frame = MyForm()
-        self.frame.Show()
+        self.frame.onMaximize(evt)
  
     #----------------------------------------------------------------------
     def OnTaskBarActivate(self, evt):
@@ -363,6 +366,7 @@ class MyIcon(wx.TaskBarIcon):
         Destroy the taskbar icon and frame from the taskbar icon itself
         """
         try:
+            self.frame.shutdown()    
             self.frame.Destroy()
         except:
             pass
@@ -378,9 +382,9 @@ class MyIcon(wx.TaskBarIcon):
         """
         
         if not self.frame.IsShown():
-            self.frame.Show(True)
+            self.frame.onMaximize(evt)
         else:
-            self.frame.Show(False)
+            self.frame.onIconize(evt)
         
     #----------------------------------------------------------------------
     def OnTaskBarRightClick(self, evt):
