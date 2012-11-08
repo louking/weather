@@ -3,6 +3,8 @@ weather - weather monitoring
 
 This provides mechanisms for monitoring weather data
 
+* wuwatch - display weather underground data
+
 License
 -------
 
