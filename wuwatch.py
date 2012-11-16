@@ -212,40 +212,14 @@ class IconText:
         return self.icon
         
 ########################################################################
-class MyFormHandler(AbstractHandler):
-########################################################################
-    """
-    not used, trying TLWHandler instead
-    """
-    #----------------------------------------------------------------------
-    def __init__(self, pObject):
-    #----------------------------------------------------------------------
-        AbstractHandler.__init__(self, pObject)
-
-    #----------------------------------------------------------------------
-    def GetKind(self):
-    #----------------------------------------------------------------------
-        return PERSIST_FORM_KIND
-        
-    #----------------------------------------------------------------------
-    def Save(self):
-    #----------------------------------------------------------------------
-        frame, obj = self._window, self._pObject
-        obj.SaveValue(PERSIST_FORM_POSITION, frame.GetPosition())
-
-    #----------------------------------------------------------------------
-    def Restore(self):
-    #----------------------------------------------------------------------
-        pass
-    
-########################################################################
-class MyForm(wx.Frame):
+class WxDisplay(wx.Frame):
 ########################################################################
  
     #----------------------------------------------------------------------
     def __init__(self):
     #----------------------------------------------------------------------
-        wx.Frame.__init__(self, None, wx.ID_ANY, "wunderground details", size=(350,200), 
+        self.formname = 'wunderground details'
+        wx.Frame.__init__(self, None, wx.ID_ANY, self.formname, size=(350,200), 
             style=wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.FRAME_NO_TASKBAR)
         panel = wx.Panel(self)
         self.Bind(wx.EVT_CLOSE, self.onClose)
@@ -256,11 +230,11 @@ class MyForm(wx.Frame):
 
         self.st = wx.StaticText(self) # static text widget
         
-        self.SetName('wunderground details')
+        self.SetName(self.formname)
         self.pm = PersistenceManager()
         self.pm.Register(self,persistenceHandler=TLWHandler)
         check = self.pm.Restore(self)
-        if self.debug: print ('Position at MyForm.__init__ is {0}'.format(self.GetPosition()))
+        if self.debug: print ('Position at WxDisplay.__init__ is {0}'.format(self.GetPosition()))
         
         self.Show(False)    # start without showing form
         
@@ -268,7 +242,7 @@ class MyForm(wx.Frame):
     def shutdown(self):
     #----------------------------------------------------------------------
         
-        if self.debug: print ('Position at MyForm.shutdown is {0}'.format(self.GetPosition()))
+        if self.debug: print ('Position at WxDisplay.shutdown is {0}'.format(self.GetPosition()))
         self.pm.SaveAndUnregister(self)
         
     #----------------------------------------------------------------------
@@ -278,7 +252,7 @@ class MyForm(wx.Frame):
         Leave only the systray icon
         """
         #self.onClose(evt)
-        if self.debug: print ('Position at MyForm.onIconize is {0}'.format(self.GetPosition()))
+        if self.debug: print ('Position at WxDisplay.onIconize is {0}'.format(self.GetPosition()))
         self.Show(False)
  
     #----------------------------------------------------------------------
@@ -287,7 +261,7 @@ class MyForm(wx.Frame):
         """
         Show the frame 
         """
-        if self.debug: print ('Position at MyForm.onMaximize is {0}'.format(self.GetPosition()))
+        if self.debug: print ('Position at WxDisplay.onMaximize is {0}'.format(self.GetPosition()))
         self.Show(True)
  
     #----------------------------------------------------------------------
@@ -309,13 +283,154 @@ class MyForm(wx.Frame):
         """
 
         self.st.SetLabel(text)
-        # self.st.Layout()
-        # self.Layout()
+
+########################################################################
+class StnChoice(wx.Panel):
+########################################################################
+
+    #----------------------------------------------------------------------
+    def __init__(self, parent):
+    #----------------------------------------------------------------------
+        wx.Panel.__init__(self, parent, wx.ID_ANY)
+
+        wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
+        
+        # TBD get possible stations from wunderground
+        stations = {'KMDNEWMA2':'Lake Linganore','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
+        stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
+        
+        self.ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
+        self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.ch)
+        self.chosen = None
+        
+    #----------------------------------------------------------------------
+    def EvtChoice(self, event):
+    #----------------------------------------------------------------------
+        self.chosen = event.GetString()
+
+    #----------------------------------------------------------------------
+    def getChoice(self):
+    #----------------------------------------------------------------------
+        return self.chosen
+
+
+########################################################################
+class UpdateStn(wx.Frame):
+########################################################################
+ 
+    BTN_OK = wx.NewId()
+    BTN_CNCL = wx.NewId()
+    
+    #----------------------------------------------------------------------
+    def __init__(self,parent,wxstn):
+    #----------------------------------------------------------------------
+        self.debug = False
+
+        self.wxstn = wxstn
+        
+        self.formname = 'update station'
+        wx.Frame.__init__(self, parent, wx.ID_ANY, self.formname)
+        self.Bind(wx.EVT_CLOSE, self.onClose)
+        self.Bind(wx.EVT_ICONIZE, self.onIconize)
+        self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
+        
+        # self.ch = StnChoice(self)
+        wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
+        
+        # TBD get possible stations from wunderground
+        stations = {'KMDNEWMA2':'Lake Linganore','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
+        stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
+        
+        ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
+        self.Bind(wx.EVT_CHOICE, self.EvtChoice, ch)
+        self.chosen = None
+
+        b = wx.Button(self, self.BTN_OK, "OK", (15, 80))
+        self.Bind(wx.EVT_BUTTON, self.onOk, b)
+        b.SetDefault()
+        b.SetSize(b.GetBestSize())
+
+        b = wx.Button(self, self.BTN_CNCL, "Cancel", (90, 80)) 
+        self.Bind(wx.EVT_BUTTON, self.onClose, b)
+        b.SetSize(b.GetBestSize())
+
+        self.SetName(self.formname)
+        self.pm = PersistenceManager()
+        self.pm.Register(self,persistenceHandler=TLWHandler)
+        check = self.pm.Restore(self)
+        if self.debug: print ('Position at UpdateStn.__init__ is {0}'.format(self.GetPosition()))
+        
+        self.Show(True)    
+        
+    #----------------------------------------------------------------------
+    def onIconize(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Minimize to task bar
+        """
+        #self.onClose(evt)
+        if self.debug: print ('Position at UpdateStn.onIconize is {0}'.format(self.GetPosition()))
+        pass
+ 
+    #----------------------------------------------------------------------
+    def onMaximize(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Maximize
+        """
+        if self.debug: print ('Position at WxDisplay.onMaximize is {0}'.format(self.GetPosition()))
+        pass
+ 
+    #----------------------------------------------------------------------
+    def EvtChoice(self, evt):
+    #----------------------------------------------------------------------
+        self.chosen = evt.GetString()
+
+    #----------------------------------------------------------------------
+    def onOk(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Update the station and close the window
+        
+        If nothing was chosen, no changes are made
+        """
+        if self.debug: print ('Position at UpdateStn.onClose is {0}'.format(self.GetPosition()))
+        
+        # get chosen station
+        stnstring = self.chosen
+        # stnstring = self.ch.getChoice()
+        
+        # None means no choice was made
+        # else stnstring is of format 'City Name (stnid)'
+        if stnstring is not None:
+            for c in range(len(stnstring)-1,-1,-1):
+                if stnstring[c] == '(':
+                    start = c+1
+                    break
+            stnid = stnstring[start:-1]
+            self.wxstn.setstation(stnid)
+            self.wxstn.gettemp()
+                
+        self.pm.SaveAndUnregister(self)
+        self.Destroy()
+        
+    #----------------------------------------------------------------------
+    def onClose(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Just close the window without updating the station
+        """
+        # save state first?  Need an OK button, I guess
+        if self.debug: print ('Position at UpdateStn.onCancel is {0}'.format(self.GetPosition()))
+        self.pm.SaveAndUnregister(self)
+        self.Destroy()
+        
 
 ########################################################################
 class MyIcon(wx.TaskBarIcon):
 ########################################################################
     TBMENU_OPEN = wx.NewId()
+    TBMENU_SETSTN = wx.NewId()
     TBMENU_EXIT = wx.NewId()
     ID_ICON_TIMER = wx.NewId()
  
@@ -329,6 +444,7 @@ class MyIcon(wx.TaskBarIcon):
         
         # bind some events
         self.Bind(wx.EVT_MENU, self.OnMaximize, id=self.TBMENU_OPEN)
+        self.Bind(wx.EVT_MENU, self.OnSetStn, id=self.TBMENU_SETSTN)
         self.Bind(wx.EVT_MENU, self.OnTaskBarClose, id=self.TBMENU_EXIT)
         self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.OnTaskBarLeftClick)
         self.Bind(wx.EVT_TASKBAR_RIGHT_DOWN, self.OnTaskBarRightClick)
@@ -356,6 +472,7 @@ class MyIcon(wx.TaskBarIcon):
         """
         menu = wx.Menu()
         menu.Append(self.TBMENU_OPEN, "Open")
+        menu.Append(self.TBMENU_SETSTN, "Set Station")
         #menu.AppendSeparator()
         menu.Append(self.TBMENU_EXIT,   "Exit")
         return menu
@@ -363,15 +480,19 @@ class MyIcon(wx.TaskBarIcon):
     #----------------------------------------------------------------------
     def OnMaximize(self, evt):
     #----------------------------------------------------------------------
-        """"""
-        #self.frame = MyForm()
+        """
+        Request to maximize window
+        """
+        #self.frame = WxDisplay()
         self.frame.onMaximize(evt)
  
     #----------------------------------------------------------------------
-    def OnTaskBarActivate(self, evt):
+    def OnSetStn(self, evt):
     #----------------------------------------------------------------------
-        """"""
-        pass
+        """
+        Request to set a new active station
+        """
+        self.updatestn = UpdateStn(self.frame,self.wxstn)
  
     #----------------------------------------------------------------------
     def OnTaskBarClose(self, evt):
@@ -436,7 +557,7 @@ class MyIcon(wx.TaskBarIcon):
         # update form
         wxstring = self.wxstn.getwxstring()
         # self.SetIcon(thisicon,u'Current Temp = {0}\u00B0F'.format(currtemp))
-        self.SetIcon(thisicon,wxstring)
+        self.SetIcon(thisicon,wxstring) # TBD - need to abbreviate wxstring
         self.frame.settext(wxstring)
         
 #######################################################################
@@ -452,7 +573,7 @@ class MyApp(wx.App):
         :param wxstn: WeatherStation object
         """
         wx.App.__init__(self, False)
-        self.frame = MyForm()
+        self.frame = WxDisplay()
         self.tbIcon = MyIcon(self.frame,wxstn)
         self.tbIcon.SetIconTimer()
  
