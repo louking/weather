@@ -6,6 +6,7 @@
 #   ----		------		------
 #   10/02/12	Lou King	Create
 #   11/05/12    Lou King    Add window persistence
+#   11/16/12    Lou King    Add set station form
 #
 #   Copyright 2012 Lou King
 #
@@ -322,11 +323,12 @@ class UpdateStn(wx.Frame):
     BTN_CNCL = wx.NewId()
     
     #----------------------------------------------------------------------
-    def __init__(self,parent,wxstn):
+    def __init__(self,parent,wxstn,tbicon):
     #----------------------------------------------------------------------
         self.debug = False
 
         self.wxstn = wxstn
+        self.tbicon = tbicon
         
         self.formname = 'update station'
         wx.Frame.__init__(self, parent, wx.ID_ANY, self.formname)
@@ -409,7 +411,7 @@ class UpdateStn(wx.Frame):
                     break
             stnid = stnstring[start:-1]
             self.wxstn.setstation(stnid)
-            self.wxstn.gettemp()
+            self.tbicon.UpdateIcon('stnchange')
                 
         self.pm.SaveAndUnregister(self)
         self.Destroy()
@@ -492,7 +494,7 @@ class MyIcon(wx.TaskBarIcon):
         """
         Request to set a new active station
         """
-        self.updatestn = UpdateStn(self.frame,self.wxstn)
+        self.updatestn = UpdateStn(self.frame,self.wxstn,self)
  
     #----------------------------------------------------------------------
     def OnTaskBarClose(self, evt):
