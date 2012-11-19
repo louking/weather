@@ -33,8 +33,11 @@ import pdb
 import optparse
 import urllib2
 import xml.etree.ElementTree as ET
+from cStringIO import StringIO
+import sys
 
 # pypi
+import motionless
 
 # github
 
@@ -340,22 +343,50 @@ class UpdateStn(wx.Frame):
         wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
         
         # TBD get possible stations from wunderground
-        stations = {'KMDNEWMA2':'Lake Linganore','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
+        stations = {'KMDNEWMA2':'Lake Linganore, New Market, MD','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
         stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
         
+        # prepare map image url
+        dmap = motionless.DecoratedMap()
+        dmap.add_marker(motionless.LatLonMarker(39.41,-77.30,label='A'))    # Lake Linganore
+        dmap.add_marker(motionless.LatLonMarker(39.39,-77.32,label='B'))    # Holly Hills
+        mapurl = dmap.generate_url()
+        maperror = False
+        try:
+            fp = urllib2.urlopen(mapurl)
+            data = fp.read()
+            fp.close()
+            mapimg = wx.ImageFromStream(StringIO(data))
+        except:
+            print('Error processing map url: {0}'.format(sys.exc_info()))
+            maperror = True
+        
+        # choice picker for station
         ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
+        ch.SetSize(ch.GetBestSize())
         self.Bind(wx.EVT_CHOICE, self.EvtChoice, ch)
         self.chosen = None
 
+        # OK button
         b = wx.Button(self, self.BTN_OK, "OK", (15, 80))
         self.Bind(wx.EVT_BUTTON, self.onOk, b)
         b.SetDefault()
         b.SetSize(b.GetBestSize())
 
+        # Cancel button
         b = wx.Button(self, self.BTN_CNCL, "Cancel", (90, 80)) 
         self.Bind(wx.EVT_BUTTON, self.onClose, b)
         b.SetSize(b.GetBestSize())
 
+        # map
+        if not maperror:
+            bmp = mapimg.ConvertToBitmap()
+            wx.StaticBitmap(self, wx.ID_ANY, bmp, (10,110))
+            bmp.SetSize(bmp.GetSize())
+        
+        self.Fit() 
+
+        
         self.SetName(self.formname)
         self.pm = PersistenceManager()
         self.pm.Register(self,persistenceHandler=TLWHandler)
