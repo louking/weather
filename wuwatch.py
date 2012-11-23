@@ -35,8 +35,10 @@ import urllib2
 import xml.etree.ElementTree as ET
 from cStringIO import StringIO
 import sys
+import string
 
 # pypi
+import pygeocoder
 import motionless
 
 # github
@@ -65,7 +67,9 @@ DISPLAYFORMAT = ('' +
 DISPLAYKEYS = [f.split('^')[0] for f in DISPLAYFORMAT.split(',')]
 DISPLAYFORMATS = [f.split('^')[1] for f in DISPLAYFORMAT.split(',')]
 DISPLAYFIELDS = dict(zip(DISPLAYKEYS,DISPLAYFORMATS))
-    
+
+WUAPIKEY = '4290fe192dd34983'
+
 ########################################################################
 def SetDcContext(memDC, font=None, color=None):
 ########################################################################
@@ -121,8 +125,8 @@ class WeatherStation:
         # get data from wunderground
         wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation))
         wuxml = wu.readlines()
-        tree = ET.fromstringlist(wuxml) 
         wu.close()
+        tree = ET.fromstringlist(wuxml) 
         
         # pull out full weather string
         self.wxstring = ''
@@ -317,10 +321,19 @@ class StnChoice(wx.Panel):
     #----------------------------------------------------------------------
         return self.chosen
 
-
 ########################################################################
 class UpdateStn(wx.Frame):
+# cobbled from http://zetcode.com/wxpython/layout/
 ########################################################################
+    """
+    Form to update the station.  Form displays TextCntl to collect desired
+    address stations should be near.  Once address is entered, map is populated
+    and user can give choice of station.
+    
+    :param parent: parent object for this form
+    :param wxstn: WeatherStation object, which holds current station
+    :param tbicon: task bar (actually systray icon) object
+    """
  
     BTN_OK = wx.NewId()
     BTN_CNCL = wx.NewId()
@@ -339,17 +352,141 @@ class UpdateStn(wx.Frame):
         self.Bind(wx.EVT_ICONIZE, self.onIconize)
         self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
         
-        # self.ch = StnChoice(self)
-        wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
+        self.InitUI()
+        self.Centre()
+        self.Show()     
         
-        # TBD get possible stations from wunderground
-        stations = {'KMDNEWMA2':'Lake Linganore, New Market, MD','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
-        stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
+        self.SetName(self.formname)
+        self.pm = PersistenceManager()
+        self.pm.Register(self,persistenceHandler=TLWHandler)
+        check = self.pm.Restore(self)
+        if self.debug: print ('Position at UpdateStn.__init__ is {0}'.format(self.GetPosition()))
+
+    #----------------------------------------------------------------------
+    def InitUI(self):
+    #----------------------------------------------------------------------
+        """
+        Initialize the form
+        """
+        self.panel = wx.Panel(self)
+
+        font = wx.SystemSettings_GetFont(wx.SYS_SYSTEM_FONT)
+        font.SetPointSize(9)
+
+        self.vbox = wx.BoxSizer(wx.VERTICAL)
+
+        # hbox1 - address entry
+        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+        st1 = wx.StaticText(self.panel, label='Enter address')
+        st1.SetFont(font)
+        hbox1.Add(st1, flag=wx.RIGHT, border=8)
+        self.tc = wx.TextCtrl(self.panel,style=wx.TE_PROCESS_ENTER)
+        self.Bind(wx.EVT_TEXT_ENTER, self.onSearch, self.tc)        
+        hbox1.Add(self.tc, proportion=1, border=8)
+        self.resultdisp = wx.StaticText(self.panel, label='')
+        self.resultdisp.SetFont(font)
+        hbox1.Add(self.resultdisp, proportion=1, border=8)
+        self.vbox.Add(hbox1, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+
+        self.vbox.Add((-1, 10))
+
+        # hbox2 - station selection
+        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+        st3 = wx.StaticText(self.panel, label='Select Station')
+        st3.SetFont(font)
+        hbox2.Add(st3, flag=wx.RIGHT, border=8)
+        self.stnchoice = wx.Choice(self.panel,choices = [])             # self.stnchoice gets updated in onSearch()
+        self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.stnchoice)        
+        hbox2.Add(self.stnchoice)
+        self.vbox.Add(hbox2, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.vbox.Add((-1, 10))
+
+        # hbox3 - OK, Cancel buttons
+        hbox3 = wx.BoxSizer(wx.HORIZONTAL)
+        # OK button
+        b1 = wx.Button(self.panel, self.BTN_OK, "OK")
+        self.Bind(wx.EVT_BUTTON, self.onOk, b1)
+        b1.SetDefault()
+        b1.SetSize(b1.GetBestSize())
+        hbox3.Add(b1, border=8)
+        # Cancel button
+        b2 = wx.Button(self.panel, self.BTN_CNCL, "Cancel") 
+        self.Bind(wx.EVT_BUTTON, self.onClose, b2)
+        b2.SetSize(b2.GetBestSize())
+        hbox3.Add(b2, border=8)
+        self.vbox.Add(hbox3, flag=wx.LEFT|wx.RIGHT|wx.EXPAND, border=10)
+
+        self.vbox.Add((-1, 10))
+
+        # hbox4 - map
+        hbox4 = wx.BoxSizer(wx.HORIZONTAL)
+        bmp = wx.EmptyBitmap(400,400)
+        dc = wx.MemoryDC() 
+        dc.SelectObject(bmp) 
+        dc.SetBackground(wx.Brush("black")) 
+        dc.SelectObject( wx.NullBitmap )
+        self.mapimage = wx.StaticBitmap(self.panel,wx.ID_ANY,bmp)
+        hbox4.Add(self.mapimage)
+        self.vbox.Add(hbox4, flag=wx.LEFT, border=10)
+
+        self.panel.SetSizerAndFit(self.vbox)
+
+    #----------------------------------------------------------------------
+    def onSearch(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Search for address, then display rest of frame
+        """
+        results = pygeocoder.Geocoder.geocode(self.tc.GetValue())
+        self.tc.SetValue('')
+        if not results.valid_address:
+            self.resultdisp.SetLabel('Invalid Address')
+            return
+        self.resultdisp.SetLabel('')
+        lat = results.coordinates[0]
+        lon = results.coordinates[1]
+        if True:        # set to False for fake address translation
+            wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
+        else:
+            if results.formatted_address[0:4] == '5575':
+                wu = open('hollyhills.xml')
+            else:
+                wu = open('sandiego.xml')
+        wuxml = wu.readlines()
+        wu.close()
+
+        # pull station data out of response
+        tree = ET.fromstringlist(wuxml) 
+        pws = tree.find('location').find('nearby_weather_stations').find('pws')
+        stnlist_dec = []
+        for stn in pws.findall('station'):
+            stnd = {}
+            stnd['string'] = ', '.join([l for l in[stn.find('neighborhood').text,stn.find('city').text,stn.find('state').text] if l is not None])    # skip empty text in any of these fields
+            stnd['id'] = stn.find('id').text
+            stnd['lat'] = float(stn.find('lat').text)
+            stnd['lon'] = float(stn.find('lon').text)
+            stnd['distkm'] = float(stn.find('distance_km').text)
+            stnd['distmi'] = float(stn.find('distance_mi').text)
+            stnlist_dec.append((stnd['distkm'],stnd))   # prepend distance for sorting
+        stnlist_dec.sort()
+        stnlist = [stn[1] for stn in stnlist_dec]   # remove decoration used for sorting
+        MAXSTATIONS = 10    # must be <= 26
+        labels = iter(string.ascii_uppercase[0:MAXSTATIONS])
+        choices = []
+        dmap = motionless.DecoratedMap()
+        for stn in stnlist:
+            try:
+                label = next(labels)
+            except StopIteration:
+                break
+            choice = '{0}: {1} ({2})'.format(label,stn['string'],stn['id'])
+            dmap.add_marker(motionless.LatLonMarker(stn['lat'],stn['lon'],label=label))
+            choices.append(choice)
+        self.stnchoice.SetItems(choices)
+        self.stnchoice.SetSize(self.stnchoice.GetBestSize())
         
         # prepare map image url
-        dmap = motionless.DecoratedMap()
-        dmap.add_marker(motionless.LatLonMarker(39.41,-77.30,label='A'))    # Lake Linganore
-        dmap.add_marker(motionless.LatLonMarker(39.39,-77.32,label='B'))    # Holly Hills
         mapurl = dmap.generate_url()
         maperror = False
         try:
@@ -358,43 +495,18 @@ class UpdateStn(wx.Frame):
             fp.close()
             mapimg = wx.ImageFromStream(StringIO(data))
         except:
-            print('Error processing map url: {0}'.format(sys.exc_info()))
+            self.resultdisp.SetLabel('Error processing map: {0}'.format(sys.exc_info()))
             maperror = True
+            return
         
-        # choice picker for station
-        ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
-        ch.SetSize(ch.GetBestSize())
-        self.Bind(wx.EVT_CHOICE, self.EvtChoice, ch)
-        self.chosen = None
-
-        # OK button
-        b = wx.Button(self, self.BTN_OK, "OK", (15, 80))
-        self.Bind(wx.EVT_BUTTON, self.onOk, b)
-        b.SetDefault()
-        b.SetSize(b.GetBestSize())
-
-        # Cancel button
-        b = wx.Button(self, self.BTN_CNCL, "Cancel", (90, 80)) 
-        self.Bind(wx.EVT_BUTTON, self.onClose, b)
-        b.SetSize(b.GetBestSize())
-
         # map
         if not maperror:
             bmp = mapimg.ConvertToBitmap()
-            wx.StaticBitmap(self, wx.ID_ANY, bmp, (10,110))
             bmp.SetSize(bmp.GetSize())
+            self.mapimage.SetBitmap(bmp)
         
-        self.Fit() 
+        self.panel.SetSizerAndFit(self.vbox)
 
-        
-        self.SetName(self.formname)
-        self.pm = PersistenceManager()
-        self.pm.Register(self,persistenceHandler=TLWHandler)
-        check = self.pm.Restore(self)
-        if self.debug: print ('Position at UpdateStn.__init__ is {0}'.format(self.GetPosition()))
-        
-        self.Show(True)    
-        
     #----------------------------------------------------------------------
     def onIconize(self, evt):
     #----------------------------------------------------------------------
@@ -453,7 +565,6 @@ class UpdateStn(wx.Frame):
         """
         Just close the window without updating the station
         """
-        # save state first?  Need an OK button, I guess
         if self.debug: print ('Position at UpdateStn.onCancel is {0}'.format(self.GetPosition()))
         self.pm.SaveAndUnregister(self)
         self.Destroy()
@@ -526,6 +637,7 @@ class MyIcon(wx.TaskBarIcon):
         Request to set a new active station
         """
         self.updatestn = UpdateStn(self.frame,self.wxstn,self)
+        # self.updatestn = Example(self.frame,'Example')
  
     #----------------------------------------------------------------------
     def OnTaskBarClose(self, evt):

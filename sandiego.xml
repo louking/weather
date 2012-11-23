@@ -1,0 +1,483 @@
+<response>
+<version>0.1</version>
+<termsofService>
+http://www.wunderground.com/weather/api/d/terms.html
+</termsofService>
+<features>
+<feature>geolookup</feature>
+</features>
+<location>
+<type>CITY</type>
+<country>US</country>
+<country_iso3166>US</country_iso3166>
+<country_name>USA</country_name>
+<state>CA</state>
+<city>San Diego</city>
+<tz_short>PST</tz_short>
+<tz_long>America/Los_Angeles</tz_long>
+<lat>32.827145</lat>
+<lon>-117.172663</lon>
+<zip>92117</zip>
+<magic>1</magic>
+<wmo>99999</wmo>
+<l>/q/zmw:92117.1.99999</l>
+<requesturl>US/CA/San_Diego.html</requesturl>
+<wuiurl>http://www.wunderground.com/US/CA/San_Diego.html</wuiurl>
+<nearby_weather_stations>
+<airport>
+<station>
+<city>San Diego Montgomery</city>
+<state>CA</state>
+<country>US</country>
+<icao>KMYF</icao>
+<lat>32.81999969</lat>
+<lon>-117.13999939</lon>
+</station>
+<station>
+<city>Miramar MCAS</city>
+<state>CA</state>
+<country>US</country>
+<icao>KNKX</icao>
+<lat>32.86999893</lat>
+<lon>-117.13999939</lon>
+</station>
+<station>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<icao>KSAN</icao>
+<lat>32.72999954</lat>
+<lon>-117.19000244</lon>
+</station>
+<station>
+<city>North Island</city>
+<state>CA</state>
+<country>US</country>
+<icao>KNZY</icao>
+<lat>32.70000076</lat>
+<lon>-117.20999908</lon>
+</station>
+</airport>
+<pws>
+<station>
+<neighborhood>No. Clairemont, near the Square</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI137</id>
+<lat>32.825649</lat>
+<lon>-117.199104</lon>
+<distance_km>2</distance_km>
+<distance_mi>1</distance_mi>
+</station>
+<station>
+<neighborhood>Cool Clairemont</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI57</id>
+<lat>32.830151</lat>
+<lon>-117.190948</lon>
+<distance_km>1</distance_km>
+<distance_mi>1</distance_mi>
+</station>
+<station>
+<neighborhood>N. Clairemont</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI106</id>
+<lat>32.835800</lat>
+<lon>-117.199097</lon>
+<distance_km>2</distance_km>
+<distance_mi>1</distance_mi>
+</station>
+<station>
+<neighborhood>North Clairemont</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI155</id>
+<lat>32.836853</lat>
+<lon>-117.191559</lon>
+<distance_km>2</distance_km>
+<distance_mi>1</distance_mi>
+</station>
+<station>
+<neighborhood>Clairemont</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI103</id>
+<lat>32.808159</lat>
+<lon>-117.192268</lon>
+<distance_km>2</distance_km>
+<distance_mi>1</distance_mi>
+</station>
+<station>
+<neighborhood>Bay Park - Mission Bay</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI149</id>
+<lat>32.804482</lat>
+<lon>-117.207840</lon>
+<distance_km>4</distance_km>
+<distance_mi>2</distance_mi>
+</station>
+<station>
+<neighborhood>Near Morena Costco</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI58</id>
+<lat>32.823269</lat>
+<lon>-117.222847</lon>
+<distance_km>4</distance_km>
+<distance_mi>2</distance_mi>
+</station>
+<station>
+<neighborhood>University City South</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI82</id>
+<lat>32.848888</lat>
+<lon>-117.208046</lon>
+<distance_km>4</distance_km>
+<distance_mi>2</distance_mi>
+</station>
+<station>
+<neighborhood/>
+<city>Pacific Beach</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI84</id>
+<lat>32.811623</lat>
+<lon>-117.227623</lon>
+<distance_km>5</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>University City</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI92</id>
+<lat>32.858864</lat>
+<lon>-117.195389</lon>
+<distance_km>4</distance_km>
+<distance_mi>2</distance_mi>
+</station>
+<station>
+<neighborhood>University City East</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI126</id>
+<lat>32.860352</lat>
+<lon>-117.195908</lon>
+<distance_km>4</distance_km>
+<distance_mi>2</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest Mount Soledad CA US SDGE</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MMSDSD</id>
+<lat>32.813999</lat>
+<lon>-117.240997</lon>
+<distance_km>6</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>La Jolla</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>KCALAJOL5</id>
+<lat>32.826332</lat>
+<lon>-117.243126</lon>
+<distance_km>6</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>Bay View</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI108</id>
+<lat>32.781975</lat>
+<lon>-117.191864</lon>
+<distance_km>5</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>RocksBio (Bay Park)</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI157</id>
+<lat>32.780342</lat>
+<lon>-117.186775</lon>
+<distance_km>5</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>Rick Engineering Company</neighborhood>
+<city>San Diego (Mission Valley)</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI66</id>
+<lat>32.764450</lat>
+<lon>-117.191002</lon>
+<distance_km>7</distance_km>
+<distance_mi>4</distance_mi>
+</station>
+<station>
+<neighborhood>La Jolla Shores</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>KCALAJOL2</id>
+<lat>32.862514</lat>
+<lon>-117.252930</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest San Diego Sea World CA US SGXWFO</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MSDSWD</id>
+<lat>32.766998</lat>
+<lon>-117.224998</lon>
+<distance_km>8</distance_km>
+<distance_mi>4</distance_mi>
+</station>
+<station>
+<neighborhood>Mission Bay Yacht Club</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI107</id>
+<lat>32.778091</lat>
+<lon>-117.246910</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest Mission Beach CA US SGXWFO</neighborhood>
+<city>Crown Point</city>
+<state>CA</state>
+<country>US</country>
+<id>MSDMIB</id>
+<lat>32.780998</lat>
+<lon>-117.251999</lon>
+<distance_km>9</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest La Jolla CA US SGXWFO</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>MSDLJS</id>
+<lat>32.868328</lat>
+<lon>-117.253326</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest Mission Valley North CA US SDGE</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MMVNSD</id>
+<lat>32.780998</lat>
+<lon>-117.138000</lon>
+<distance_km>6</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>Beach Barber Tract</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>KCALAJOL8</id>
+<lat>32.832119</lat>
+<lon>-117.275246</lon>
+<distance_km>9</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Scripps Pier (La Jolla)</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI69</id>
+<lat>32.867020</lat>
+<lon>-117.257469</lon>
+<distance_km>9</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Kearny Mesa</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI130</id>
+<lat>32.811768</lat>
+<lon>-117.118942</lon>
+<distance_km>5</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>UCSD Field Station</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>KCALAJOL7</id>
+<lat>32.885277</lat>
+<lon>-117.229164</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest Camp Elliot CA US SDGE</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MMPESD</id>
+<lat>32.852390</lat>
+<lon>-117.118011</lon>
+<distance_km>5</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>Mira Mesa</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI51</id>
+<lat>32.900002</lat>
+<lon>-117.199997</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>MesoWest Tierrasanta CA US SGXWFO</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MSDTSA</id>
+<lat>32.831501</lat>
+<lon>-117.106003</lon>
+<distance_km>6</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>APRSWXNET Torrey Pines Glider CA US</neighborhood>
+<city>La Jolla</city>
+<state>CA</state>
+<country>US</country>
+<id>MAP907</id>
+<lat>32.889999</lat>
+<lon>-117.250000</lon>
+<distance_km>10</distance_km>
+<distance_mi>6</distance_mi>
+</station>
+<station>
+<neighborhood>Tierrasanta</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI113</id>
+<lat>32.837692</lat>
+<lon>-117.102600</lon>
+<distance_km>6</distance_km>
+<distance_mi>3</distance_mi>
+</station>
+<station>
+<neighborhood>RAWS CAMP ELLIOTT CA US</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>MMPEC1</id>
+<lat>32.859200</lat>
+<lon>-117.105598</lon>
+<distance_km>7</distance_km>
+<distance_mi>4</distance_mi>
+</station>
+<station>
+<neighborhood>Los Penasquitos Canyon</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI88</id>
+<lat>32.913071</lat>
+<lon>-117.199326</lon>
+<distance_km>9</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Kensington Heights</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI98</id>
+<lat>32.774326</lat>
+<lon>-117.108452</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Miramar</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI135</id>
+<lat>32.896427</lat>
+<lon>-117.133949</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Ocean Beach</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI6</id>
+<lat>32.739700</lat>
+<lon>-117.243301</lon>
+<distance_km>11</distance_km>
+<distance_mi>7</distance_mi>
+</station>
+<station>
+<neighborhood>Balboa Park</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI125</id>
+<lat>32.739323</lat>
+<lon>-117.151184</lon>
+<distance_km>9</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+<station>
+<neighborhood>Mission Valley</neighborhood>
+<city>San Diego</city>
+<state>CA</state>
+<country>US</country>
+<id>KCASANDI36</id>
+<lat>32.798000</lat>
+<lon>-117.087997</lon>
+<distance_km>8</distance_km>
+<distance_mi>5</distance_mi>
+</station>
+</pws>
+</nearby_weather_stations>
+</location>
+</response>
