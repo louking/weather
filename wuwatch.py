@@ -44,9 +44,10 @@ import motionless
 # github
 
 # other
-import wx   # http://wxpython.org/download.php#stable
+import wx   # http://wxpython.org/download.php - 2.9 minimum
 from wx.lib.agw.persist.persistencemanager import PersistenceManager
 from wx.lib.agw.persist.persist_handlers import AbstractHandler,TLWHandler
+import wx.lib.agw.hyperlink as hl
 
 # home grown
 
@@ -90,7 +91,7 @@ class WeatherStation:
     #----------------------------------------------------------------------
         """
         return a WeatherStation object
-        
+
         :param station: name of wunderground station, or None (default 'KMDIJAMS2')
         """
         if station is None:
@@ -98,45 +99,45 @@ class WeatherStation:
         else:
             wundergroundstation = station
         self.setstation(wundergroundstation)
-        
+
         self.debug = True
 
         self.wxstring = ''
-        
+
     #----------------------------------------------------------------------
     def setstation(self,station):
     #----------------------------------------------------------------------
         """
         set the configured wunderground station
-        
+
         :param station: name of wunderground station
         """
         self.wundergroundstation = station
-        
+
     #----------------------------------------------------------------------
     def gettemp(self):
     #----------------------------------------------------------------------
         """
         get temperature from configured weather underground station
-        
+
         :rtype: int with current temperature
         """
-        
+
         # get data from wunderground
         wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation))
         wuxml = wu.readlines()
         wu.close()
-        tree = ET.fromstringlist(wuxml) 
-        
+        tree = ET.fromstringlist(wuxml)
+
         # pull out full weather string
         self.wxstring = ''
         fields = list(DISPLAYKEYS) # make a copy
         while len(fields) > 0:
             field = fields.pop(0)
-            
+
             ###
             subfields = field.split('/')
-            thisel = tree
+            thisel = tree.copy()
             while len(subfields) > 0:
                 subfield = subfields.pop(0)
                 thisel = thisel.find(subfield)
@@ -146,24 +147,36 @@ class WeatherStation:
 
             if len(fields) > 0:
                 self.wxstring += '\n'
-            
+
+        self.url = tree.find('ob_url').text
+
         if self.debug:
             # pdb.set_trace()
             self.debug = False
-            
+
         temp = int(round(float(tree.find('temp_f').text)))
         return temp
-    
+
     #----------------------------------------------------------------------
     def getwxstring(self):
     #----------------------------------------------------------------------
         """
         get the last full weather string
-        
+
         :rtype: string containing weather data
         """
         return self.wxstring
-        
+
+    #----------------------------------------------------------------------
+    def geturl(self):
+    #----------------------------------------------------------------------
+        """
+        get the url string
+
+        :rtype: string containing url
+        """
+        return self.url
+
 ########################################################################
 class IconText:
 ########################################################################
@@ -173,29 +186,29 @@ class IconText:
     #----------------------------------------------------------------------
         """
         return an IconText object
-        
+
         :param initial: initial text for display
         """
-        
+
         self.icon = self.settext(initial)
-        
+
     #----------------------------------------------------------------------
     def settext(self,text):
     #----------------------------------------------------------------------
         """
         set the text for display
-        
+
         :param text: text to display
         """
         self.text = text
         bmp = wx.EmptyBitmap(16,16)
-        
-        dc = wx.MemoryDC() 
-        dc.SelectObject(bmp) 
-        dc.SetBackground(wx.Brush("black")) 
+
+        dc = wx.MemoryDC()
+        dc.SelectObject(bmp)
+        dc.SetBackground(wx.Brush("black"))
         SetDcContext(dc,color="white")    # sets font and color to defaults
-        dc.Clear() 
-        
+        dc.Clear()
+
         try:
             dc.DrawText(text, 0, 0)
         except :
@@ -208,51 +221,71 @@ class IconText:
         self.icon.CopyFromBitmap(bmp)
 
         return self.icon
-        
+
     #----------------------------------------------------------------------
     def geticon(self):
     #----------------------------------------------------------------------
         """
         get the latest ocon
-        
+
         :rtype: wx.Icon with latest text
         """
         return self.icon
-        
+
 ########################################################################
 class WxDisplay(wx.Frame):
 ########################################################################
- 
+
     #----------------------------------------------------------------------
     def __init__(self):
     #----------------------------------------------------------------------
-        self.formname = 'wunderground details'
-        wx.Frame.__init__(self, None, wx.ID_ANY, self.formname, size=(350,200), 
+        self.formname = 'weather details'
+        wx.Frame.__init__(self, None, wx.ID_ANY, self.formname, size=(350,200),
             style=wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.FRAME_NO_TASKBAR)
-        panel = wx.Panel(self)
+        self.panel = wx.Panel(self)
         self.Bind(wx.EVT_CLOSE, self.onClose)
         self.Bind(wx.EVT_ICONIZE, self.onIconize)
         self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
-        
+
         self.debug = False
 
-        self.st = wx.StaticText(self) # static text widget
-        
+        self.vbox = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self.vbox)
+
+        self.st = wx.StaticText(self.panel)
+        self.vbox.Add(self.st,border=8)
+
+        self.url = hl.HyperLinkCtrl(self.panel)
+        self.Bind(hl.EVT_HYPERLINK_LEFT, self.onClick)
+        self.vbox.Add(self.url)
+
+        self.panel.SetSizerAndFit(self.vbox)
+        self.Fit()
+
         self.SetName(self.formname)
         self.pm = PersistenceManager()
         self.pm.Register(self,persistenceHandler=TLWHandler)
         check = self.pm.Restore(self)
         if self.debug: print ('Position at WxDisplay.__init__ is {0}'.format(self.GetPosition()))
-        
+
         self.Show(False)    # start without showing form
-        
+
+    #----------------------------------------------------------------------
+    def onClick(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Follow URL link in self.url
+        """
+        url = self.url.GetURL()
+        wx.LaunchDefaultBrowser(url)
+
     #----------------------------------------------------------------------
     def shutdown(self):
     #----------------------------------------------------------------------
-        
+
         if self.debug: print ('Position at WxDisplay.shutdown is {0}'.format(self.GetPosition()))
         self.pm.SaveAndUnregister(self)
-        
+
     #----------------------------------------------------------------------
     def onIconize(self, evt):
     #----------------------------------------------------------------------
@@ -262,35 +295,50 @@ class WxDisplay(wx.Frame):
         #self.onClose(evt)
         if self.debug: print ('Position at WxDisplay.onIconize is {0}'.format(self.GetPosition()))
         self.Show(False)
- 
+
     #----------------------------------------------------------------------
     def onMaximize(self, evt):
     #----------------------------------------------------------------------
         """
-        Show the frame 
+        Show the frame
         """
         if self.debug: print ('Position at WxDisplay.onMaximize is {0}'.format(self.GetPosition()))
         self.Show(True)
- 
+
     #----------------------------------------------------------------------
     def onClose(self, evt):
     #----------------------------------------------------------------------
         """
         Destroy the taskbar icon and the frame
         """
-        #self.Destroy()
         self.Show(False)
-        
+
     #----------------------------------------------------------------------
     def settext(self, text):
     #----------------------------------------------------------------------
         """
         set text for the form
-        
+
         :param text: text to put into the form
         """
 
         self.st.SetLabel(text)
+        self.panel.SetSizerAndFit(self.vbox)
+        self.Fit()
+
+    #----------------------------------------------------------------------
+    def seturl(self, url):
+    #----------------------------------------------------------------------
+        """
+        set text for the form
+
+        :param url: url to put into the form
+        """
+
+        self.url.SetURL(url)
+        self.url.SetLabel('Current Observation')
+        self.panel.SetSizerAndFit(self.vbox)
+        self.Fit()
 
 ########################################################################
 class StnChoice(wx.Panel):
@@ -302,15 +350,15 @@ class StnChoice(wx.Panel):
         wx.Panel.__init__(self, parent, wx.ID_ANY)
 
         wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
-        
+
         # TBD get possible stations from wunderground
         stations = {'KMDNEWMA2':'Lake Linganore','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
         stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
-        
+
         self.ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
         self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.ch)
         self.chosen = None
-        
+
     #----------------------------------------------------------------------
     def EvtChoice(self, event):
     #----------------------------------------------------------------------
@@ -329,15 +377,15 @@ class UpdateStn(wx.Frame):
     Form to update the station.  Form displays TextCntl to collect desired
     address stations should be near.  Once address is entered, map is populated
     and user can give choice of station.
-    
+
     :param parent: parent object for this form
     :param wxstn: WeatherStation object, which holds current station
-    :param tbicon: task bar (actually systray icon) object
+    :param tbicon: task bar (actually systray) icon object
     """
- 
+
     BTN_OK = wx.NewId()
     BTN_CNCL = wx.NewId()
-    
+
     #----------------------------------------------------------------------
     def __init__(self,parent,wxstn,tbicon):
     #----------------------------------------------------------------------
@@ -345,17 +393,17 @@ class UpdateStn(wx.Frame):
 
         self.wxstn = wxstn
         self.tbicon = tbicon
-        
-        self.formname = 'update station'
+
+        self.formname = 'set station'
         wx.Frame.__init__(self, parent, wx.ID_ANY, self.formname)
         self.Bind(wx.EVT_CLOSE, self.onClose)
         self.Bind(wx.EVT_ICONIZE, self.onIconize)
         self.Bind(wx.EVT_MAXIMIZE, self.onMaximize)
-        
+
         self.InitUI()
         self.Centre()
-        self.Show()     
-        
+        self.Show()
+
         self.SetName(self.formname)
         self.pm = PersistenceManager()
         self.pm.Register(self,persistenceHandler=TLWHandler)
@@ -381,7 +429,7 @@ class UpdateStn(wx.Frame):
         st1.SetFont(font)
         hbox1.Add(st1, flag=wx.RIGHT, border=8)
         self.tc = wx.TextCtrl(self.panel,style=wx.TE_PROCESS_ENTER)
-        self.Bind(wx.EVT_TEXT_ENTER, self.onSearch, self.tc)        
+        self.Bind(wx.EVT_TEXT_ENTER, self.onSearch, self.tc)
         hbox1.Add(self.tc, proportion=1, border=8)
         self.resultdisp = wx.StaticText(self.panel, label='')
         self.resultdisp.SetFont(font)
@@ -396,7 +444,7 @@ class UpdateStn(wx.Frame):
         st3.SetFont(font)
         hbox2.Add(st3, flag=wx.RIGHT, border=8)
         self.stnchoice = wx.Choice(self.panel,choices = [])             # self.stnchoice gets updated in onSearch()
-        self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.stnchoice)        
+        self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.stnchoice)
         hbox2.Add(self.stnchoice)
         self.vbox.Add(hbox2, flag=wx.LEFT | wx.TOP, border=10)
 
@@ -411,7 +459,7 @@ class UpdateStn(wx.Frame):
         b1.SetSize(b1.GetBestSize())
         hbox3.Add(b1, border=8)
         # Cancel button
-        b2 = wx.Button(self.panel, self.BTN_CNCL, "Cancel") 
+        b2 = wx.Button(self.panel, self.BTN_CNCL, "Cancel")
         self.Bind(wx.EVT_BUTTON, self.onClose, b2)
         b2.SetSize(b2.GetBestSize())
         hbox3.Add(b2, border=8)
@@ -422,15 +470,16 @@ class UpdateStn(wx.Frame):
         # hbox4 - map
         hbox4 = wx.BoxSizer(wx.HORIZONTAL)
         bmp = wx.EmptyBitmap(400,400)
-        dc = wx.MemoryDC() 
-        dc.SelectObject(bmp) 
-        dc.SetBackground(wx.Brush("black")) 
+        dc = wx.MemoryDC()
+        dc.SelectObject(bmp)
+        dc.SetBackground(wx.Brush("black"))
         dc.SelectObject( wx.NullBitmap )
         self.mapimage = wx.StaticBitmap(self.panel,wx.ID_ANY,bmp)
         hbox4.Add(self.mapimage)
         self.vbox.Add(hbox4, flag=wx.LEFT, border=10)
 
         self.panel.SetSizerAndFit(self.vbox)
+        self.Fit()
 
     #----------------------------------------------------------------------
     def onSearch(self, evt):
@@ -438,15 +487,20 @@ class UpdateStn(wx.Frame):
         """
         Search for address, then display rest of frame
         """
-        results = pygeocoder.Geocoder.geocode(self.tc.GetValue())
-        self.tc.SetValue('')
+        try:
+            results = pygeocoder.Geocoder.geocode(self.tc.GetValue())
+            self.tc.SetValue('')
+        except:
+            self.resultdisp.SetLabel('Address Not Found')
+            self.tc.SetValue('')
+            return
         if not results.valid_address:
             self.resultdisp.SetLabel('Invalid Address')
             return
         self.resultdisp.SetLabel('')
         lat = results.coordinates[0]
         lon = results.coordinates[1]
-        if True:        # set to False for fake address translation
+        if False:        # set to False for fake address translation
             wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
         else:
             if results.formatted_address[0:4] == '5575':
@@ -457,7 +511,12 @@ class UpdateStn(wx.Frame):
         wu.close()
 
         # pull station data out of response
-        tree = ET.fromstringlist(wuxml) 
+        # stations pulled are those <= MAXDISTANCE away from desired address, assuming MINSTATIONS have been selected
+        # no more than MAXSTATIONS will be used
+        MINSTATIONS = 3
+        MAXSTATIONS = 10    # must be <= 26
+        MAXDISTANCE = 10    # kilometers
+        tree = ET.fromstringlist(wuxml)
         pws = tree.find('location').find('nearby_weather_stations').find('pws')
         stnlist_dec = []
         for stn in pws.findall('station'):
@@ -471,7 +530,6 @@ class UpdateStn(wx.Frame):
             stnlist_dec.append((stnd['distkm'],stnd))   # prepend distance for sorting
         stnlist_dec.sort()
         stnlist = [stn[1] for stn in stnlist_dec]   # remove decoration used for sorting
-        MAXSTATIONS = 10    # must be <= 26
         labels = iter(string.ascii_uppercase[0:MAXSTATIONS])
         choices = []
         dmap = motionless.DecoratedMap()
@@ -480,12 +538,14 @@ class UpdateStn(wx.Frame):
                 label = next(labels)
             except StopIteration:
                 break
+            if stn['distkm'] > MAXDISTANCE and len(choices) > MINSTATIONS:
+                break
             choice = '{0}: {1} ({2})'.format(label,stn['string'],stn['id'])
             dmap.add_marker(motionless.LatLonMarker(stn['lat'],stn['lon'],label=label))
             choices.append(choice)
         self.stnchoice.SetItems(choices)
         self.stnchoice.SetSize(self.stnchoice.GetBestSize())
-        
+
         # prepare map image url
         mapurl = dmap.generate_url()
         maperror = False
@@ -498,14 +558,15 @@ class UpdateStn(wx.Frame):
             self.resultdisp.SetLabel('Error processing map: {0}'.format(sys.exc_info()))
             maperror = True
             return
-        
+
         # map
         if not maperror:
             bmp = mapimg.ConvertToBitmap()
             bmp.SetSize(bmp.GetSize())
             self.mapimage.SetBitmap(bmp)
-        
+
         self.panel.SetSizerAndFit(self.vbox)
+        self.Fit()
 
     #----------------------------------------------------------------------
     def onIconize(self, evt):
@@ -516,7 +577,7 @@ class UpdateStn(wx.Frame):
         #self.onClose(evt)
         if self.debug: print ('Position at UpdateStn.onIconize is {0}'.format(self.GetPosition()))
         pass
- 
+
     #----------------------------------------------------------------------
     def onMaximize(self, evt):
     #----------------------------------------------------------------------
@@ -525,7 +586,7 @@ class UpdateStn(wx.Frame):
         """
         if self.debug: print ('Position at WxDisplay.onMaximize is {0}'.format(self.GetPosition()))
         pass
- 
+
     #----------------------------------------------------------------------
     def EvtChoice(self, evt):
     #----------------------------------------------------------------------
@@ -536,15 +597,15 @@ class UpdateStn(wx.Frame):
     #----------------------------------------------------------------------
         """
         Update the station and close the window
-        
+
         If nothing was chosen, no changes are made
         """
         if self.debug: print ('Position at UpdateStn.onClose is {0}'.format(self.GetPosition()))
-        
+
         # get chosen station
         stnstring = self.chosen
         # stnstring = self.ch.getChoice()
-        
+
         # None means no choice was made
         # else stnstring is of format 'City Name (stnid)'
         if stnstring is not None:
@@ -555,10 +616,10 @@ class UpdateStn(wx.Frame):
             stnid = stnstring[start:-1]
             self.wxstn.setstation(stnid)
             self.tbicon.UpdateIcon('stnchange')
-                
+
         self.pm.SaveAndUnregister(self)
         self.Destroy()
-        
+
     #----------------------------------------------------------------------
     def onClose(self, evt):
     #----------------------------------------------------------------------
@@ -568,7 +629,7 @@ class UpdateStn(wx.Frame):
         if self.debug: print ('Position at UpdateStn.onCancel is {0}'.format(self.GetPosition()))
         self.pm.SaveAndUnregister(self)
         self.Destroy()
-        
+
 
 ########################################################################
 class MyIcon(wx.TaskBarIcon):
@@ -577,34 +638,36 @@ class MyIcon(wx.TaskBarIcon):
     TBMENU_SETSTN = wx.NewId()
     TBMENU_EXIT = wx.NewId()
     ID_ICON_TIMER = wx.NewId()
- 
+
     #----------------------------------------------------------------------
     def __init__(self,frame,wxstn):
     #----------------------------------------------------------------------
-        
+
         wx.TaskBarIcon.__init__(self)
         self.frame = frame
         self.wxstn = wxstn
-        
+
         # bind some events
         self.Bind(wx.EVT_MENU, self.OnMaximize, id=self.TBMENU_OPEN)
         self.Bind(wx.EVT_MENU, self.OnSetStn, id=self.TBMENU_SETSTN)
         self.Bind(wx.EVT_MENU, self.OnTaskBarClose, id=self.TBMENU_EXIT)
         self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.OnTaskBarLeftClick)
         self.Bind(wx.EVT_TASKBAR_RIGHT_DOWN, self.OnTaskBarRightClick)
-        
+
         # Set the image
         self.icon = IconText()
         currtemp = str(self.wxstn.gettemp())
         thisicon = self.icon.settext(currtemp)
         # self.SetIcon(thisicon,u'Current Temp = {0}\u00B0F'.format(currtemp))
-        
+
         # initialize the form
         wxstring = self.wxstn.getwxstring()
+        wxurl = self.wxstn.geturl()
         self.SetIcon(thisicon,wxstring)
         self.frame.settext(wxstring)
+        self.frame.seturl(wxurl)
 
- 
+
     #----------------------------------------------------------------------
     def CreatePopupMenu(self, evt=None):
     #----------------------------------------------------------------------
@@ -620,7 +683,7 @@ class MyIcon(wx.TaskBarIcon):
         #menu.AppendSeparator()
         menu.Append(self.TBMENU_EXIT,   "Exit")
         return menu
- 
+
     #----------------------------------------------------------------------
     def OnMaximize(self, evt):
     #----------------------------------------------------------------------
@@ -629,7 +692,7 @@ class MyIcon(wx.TaskBarIcon):
         """
         #self.frame = WxDisplay()
         self.frame.onMaximize(evt)
- 
+
     #----------------------------------------------------------------------
     def OnSetStn(self, evt):
     #----------------------------------------------------------------------
@@ -638,7 +701,7 @@ class MyIcon(wx.TaskBarIcon):
         """
         self.updatestn = UpdateStn(self.frame,self.wxstn,self)
         # self.updatestn = Example(self.frame,'Example')
- 
+
     #----------------------------------------------------------------------
     def OnTaskBarClose(self, evt):
     #----------------------------------------------------------------------
@@ -646,33 +709,33 @@ class MyIcon(wx.TaskBarIcon):
         Destroy the taskbar icon and frame from the taskbar icon itself
         """
         try:
-            self.frame.shutdown()    
+            self.frame.shutdown()
             self.frame.Destroy()
         except:
             pass
 
         self.RemoveIcon()
         self.Destroy()
- 
+
     #----------------------------------------------------------------------
     def OnTaskBarLeftClick(self, evt):
     #----------------------------------------------------------------------
         """
         handle left click.  toggle "Show" status
         """
-        
+
         if not self.frame.IsShown():
             self.frame.onMaximize(evt)
         else:
             self.frame.onIconize(evt)
-        
+
     #----------------------------------------------------------------------
     def OnTaskBarRightClick(self, evt):
     #----------------------------------------------------------------------
         """
         Create the right-click menu
         """
-        
+
         menu = self.CreatePopupMenu()
         self.PopupMenu(menu)
         menu.Destroy()
@@ -686,42 +749,44 @@ class MyIcon(wx.TaskBarIcon):
         self.icon_timer = wx.Timer(self, self.ID_ICON_TIMER)
         wx.EVT_TIMER(self, self.ID_ICON_TIMER, self.UpdateIcon)
         self.icon_timer.Start(60*1000)    # query wunderground every minute
-       
+
     #----------------------------------------------------------------------
     def UpdateIcon(self,event):
     #----------------------------------------------------------------------
         """
         periodic update of icon
-        
+
         :param event: event which caused this method to be called
         """
         # get current temp, update icon
         currtemp = str(self.wxstn.gettemp())
         thisicon = self.icon.settext(currtemp)
-        
+
         # update form
         wxstring = self.wxstn.getwxstring()
-        # self.SetIcon(thisicon,u'Current Temp = {0}\u00B0F'.format(currtemp))
+        wxurl = self.wxstn.geturl()
+
         self.SetIcon(thisicon,wxstring) # TBD - need to abbreviate wxstring
         self.frame.settext(wxstring)
-        
+        self.frame.seturl(wxurl)
+
 #######################################################################
 class MyApp(wx.App):
 ########################################################################
- 
+
     #----------------------------------------------------------------------
     def __init__(self,wxstn):
     #----------------------------------------------------------------------
         """
         return MyApp object
-        
+
         :param wxstn: WeatherStation object
         """
         wx.App.__init__(self, False)
         self.frame = WxDisplay()
         self.tbIcon = MyIcon(self.frame,wxstn)
         self.tbIcon.SetIconTimer()
- 
+
 ################################################################################
 def main():
 ################################################################################
@@ -732,17 +797,17 @@ def main():
 
     parser = optparse.OptionParser(usage=usage)
     (options, args) = parser.parse_args()
-    
+
     wundergroundstation = None
     if len(args)>0:
         wundergroundstation = args.pop(0)
-            
+
     stn = WeatherStation(wundergroundstation)
-    
+
     # start the app
     app = MyApp(stn)
     app.MainLoop()
-    
+
 # ###############################################################################
 # ###############################################################################
 if __name__ == "__main__":
