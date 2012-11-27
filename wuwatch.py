@@ -46,14 +46,15 @@ import motionless
 # other
 import wx   # http://wxpython.org/download.php - 2.9 minimum
 from wx.lib.agw.persist.persistencemanager import PersistenceManager
-from wx.lib.agw.persist.persist_handlers import AbstractHandler,TLWHandler
+from wx.lib.agw.persist.persist_handlers import TLWHandler
 import wx.lib.agw.hyperlink as hl
+from wundergroundLogo_4c_horz import wulogo
 
 # home grown
 
 # full weather string is in same order as this
+# xml key is before caret (^), display format is after
 DISPLAYFORMAT = ('' +
-    'credit^{0},' +
     'location/full^{0},' +
     'station_id^Station ID: {0},' +
     'observation_time^{0},' +
@@ -63,7 +64,9 @@ DISPLAYFORMAT = ('' +
     'windchill_string^Wind Chill: {0},' +
     'pressure_string^Barometric Pressure: {0},' +
     'precip_1hr_string^Precipitation (current hour): {0},' +
-    'precip_today_string^Precipitation (today): {0}'    # NOTE: no comma or + for last string
+    'precip_today_string^Precipitation (today): {0},' +
+    'credit^{0}'
+       # NOTE: no comma or + for last string
     )
 DISPLAYKEYS = [f.split('^')[0] for f in DISPLAYFORMAT.split(',')]
 DISPLAYFORMATS = [f.split('^')[1] for f in DISPLAYFORMAT.split(',')]
@@ -84,7 +87,7 @@ def SetDcContext(memDC, font=None, color=None):
         memDC.SetTextForeground( color )
 
 ########################################################################
-class WeatherStation:
+class WeatherStation():
 ########################################################################
     #----------------------------------------------------------------------
     def __init__(self, station=None):
@@ -235,6 +238,7 @@ class IconText:
 ########################################################################
 class WxDisplay(wx.Frame):
 ########################################################################
+    LOGOBORDER = 16
 
     #----------------------------------------------------------------------
     def __init__(self):
@@ -259,7 +263,17 @@ class WxDisplay(wx.Frame):
         self.Bind(hl.EVT_HYPERLINK_LEFT, self.onClick)
         self.vbox.Add(self.url)
 
+        self.logo = wx.StaticBitmap(self.panel,bitmap=wx.EmptyBitmap(1,1))
+        self.vbox.Add(self.logo,flag=wx.ALL,border=self.LOGOBORDER)
+        self.logoimg = wulogo.GetImage()
+
         self.panel.SetSizerAndFit(self.vbox)
+
+##        panelwidth = float(self.panel.GetMinWidth())
+##        scalefactor = panelwidth/self.logoimg.Width
+##        scaledimg = self.logoimg.Scale(self.logoimg.Width*scalefactor, self.logoimg.Height*scalefactor, wx.IMAGE_QUALITY_HIGH)
+##        self.logo.SetBitmap(wx.BitmapFromImage(scaledimg))
+
         self.Fit()
 
         self.SetName(self.formname)
@@ -323,11 +337,21 @@ class WxDisplay(wx.Frame):
         """
 
         self.st.SetLabel(text)
-        self.panel.SetSizerAndFit(self.vbox)
-        self.Fit()
 
     #----------------------------------------------------------------------
     def seturl(self, url):
+    #----------------------------------------------------------------------
+        """
+        set url for the form
+
+        :param url: url to put into the form
+        """
+
+        self.url.SetURL(url)
+        self.url.SetLabel('wunderground details')
+
+    #----------------------------------------------------------------------
+    def setlogoandfit(self):
     #----------------------------------------------------------------------
         """
         set text for the form
@@ -335,8 +359,15 @@ class WxDisplay(wx.Frame):
         :param url: url to put into the form
         """
 
-        self.url.SetURL(url)
-        self.url.SetLabel('Current Observation')
+        self.logo.SetBitmap(wx.EmptyBitmap(1,1))
+
+        self.panel.SetSizerAndFit(self.vbox)
+
+        panelwidth = float(self.panel.GetMinWidth())
+        scalefactor = (panelwidth-self.LOGOBORDER*2)/self.logoimg.Width
+        scaledimg = self.logoimg.Scale(self.logoimg.Width*scalefactor, self.logoimg.Height*scalefactor, wx.IMAGE_QUALITY_HIGH)
+        self.logo.SetBitmap(wx.BitmapFromImage(scaledimg))
+
         self.panel.SetSizerAndFit(self.vbox)
         self.Fit()
 
@@ -385,6 +416,7 @@ class UpdateStn(wx.Frame):
 
     BTN_OK = wx.NewId()
     BTN_CNCL = wx.NewId()
+    LOGOBORDER = 20
 
     #----------------------------------------------------------------------
     def __init__(self,parent,wxstn,tbicon):
@@ -476,7 +508,17 @@ class UpdateStn(wx.Frame):
         dc.SelectObject( wx.NullBitmap )
         self.mapimage = wx.StaticBitmap(self.panel,wx.ID_ANY,bmp)
         hbox4.Add(self.mapimage)
-        self.vbox.Add(hbox4, flag=wx.LEFT, border=10)
+        self.vbox.Add(hbox4, flag=wx.CENTER, border=10)
+
+        # hbox5 - logo
+        self.logoimg = wulogo.GetImage()
+        hbox5 = wx.BoxSizer(wx.HORIZONTAL)
+        panelwidth = 400.0  # based on width of hbox4
+        scalefactor = (panelwidth-self.LOGOBORDER*2)/self.logoimg.Width
+        scaledimg = self.logoimg.Scale(self.logoimg.Width*scalefactor, self.logoimg.Height*scalefactor, wx.IMAGE_QUALITY_HIGH)
+        self.logo = wx.StaticBitmap(self.panel, bitmap=wx.BitmapFromImage(scaledimg))
+        hbox5.Add(self.logo)
+        self.vbox.Add(hbox5,flag=wx.ALL,border=self.LOGOBORDER)
 
         self.panel.SetSizerAndFit(self.vbox)
         self.Fit()
@@ -533,6 +575,7 @@ class UpdateStn(wx.Frame):
         labels = iter(string.ascii_uppercase[0:MAXSTATIONS])
         choices = []
         dmap = motionless.DecoratedMap()
+        dmap.add_marker(motionless.LatLonMarker(float(lat),float(lon),size='tiny',color='green'))
         for stn in stnlist:
             try:
                 label = next(labels)
@@ -666,6 +709,7 @@ class MyIcon(wx.TaskBarIcon):
         self.SetIcon(thisicon,wxstring)
         self.frame.settext(wxstring)
         self.frame.seturl(wxurl)
+        self.frame.setlogoandfit()
 
 
     #----------------------------------------------------------------------
@@ -769,6 +813,7 @@ class MyIcon(wx.TaskBarIcon):
         self.SetIcon(thisicon,wxstring) # TBD - need to abbreviate wxstring
         self.frame.settext(wxstring)
         self.frame.seturl(wxurl)
+        self.frame.setlogoandfit()
 
 #######################################################################
 class MyApp(wx.App):
