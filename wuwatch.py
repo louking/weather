@@ -254,7 +254,7 @@ class WxDisplay(wx.Frame):
         self.debug = False
 
         self.vbox = wx.BoxSizer(wx.VERTICAL)
-        self.SetSizer(self.vbox)
+##        self.SetSizer(self.vbox)      # causes python to crash, issue #10
 
         self.st = wx.StaticText(self.panel)
         self.vbox.Add(self.st,border=8)
@@ -268,11 +268,6 @@ class WxDisplay(wx.Frame):
         self.logoimg = wulogo.GetImage()
 
         self.panel.SetSizerAndFit(self.vbox)
-
-##        panelwidth = float(self.panel.GetMinWidth())
-##        scalefactor = panelwidth/self.logoimg.Width
-##        scaledimg = self.logoimg.Scale(self.logoimg.Width*scalefactor, self.logoimg.Height*scalefactor, wx.IMAGE_QUALITY_HIGH)
-##        self.logo.SetBitmap(wx.BitmapFromImage(scaledimg))
 
         self.Fit()
 
@@ -689,6 +684,8 @@ class MyIcon(wx.TaskBarIcon):
         wx.TaskBarIcon.__init__(self)
         self.frame = frame
         self.wxstn = wxstn
+        self.exiting = False        # flag to indicate we're trying to exit
+        self.icon_timer = None      # prevent race condition
 
         # bind some events
         self.Bind(wx.EVT_MENU, self.OnMaximize, id=self.TBMENU_OPEN)
@@ -760,6 +757,9 @@ class MyIcon(wx.TaskBarIcon):
 
         self.RemoveIcon()
         self.Destroy()
+        self.exiting = True
+        if self.icon_timer:
+            self.icon_timer.Stop()
 
     #----------------------------------------------------------------------
     def OnTaskBarLeftClick(self, evt):
@@ -792,7 +792,8 @@ class MyIcon(wx.TaskBarIcon):
         """
         self.icon_timer = wx.Timer(self, self.ID_ICON_TIMER)
         wx.EVT_TIMER(self, self.ID_ICON_TIMER, self.UpdateIcon)
-        self.icon_timer.Start(60*1000)    # query wunderground every minute
+        if not self.exiting:
+            self.icon_timer.Start(60*1000)    # query wunderground every minute
 
     #----------------------------------------------------------------------
     def UpdateIcon(self,event):
@@ -802,6 +803,9 @@ class MyIcon(wx.TaskBarIcon):
 
         :param event: event which caused this method to be called
         """
+        # don't bother if we're trying to exit
+        if self.exiting: return
+
         # get current temp, update icon
         currtemp = str(self.wxstn.gettemp())
         thisicon = self.icon.settext(currtemp)
