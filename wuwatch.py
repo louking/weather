@@ -7,6 +7,7 @@
 #   10/02/12	Lou King	Create
 #   11/05/12    Lou King    Add window persistence
 #   11/16/12    Lou King    Add set station form
+#   11/29/12    Lou King    Fix test code
 #
 #   Copyright 2012 Lou King
 #
@@ -537,7 +538,7 @@ class UpdateStn(wx.Frame):
         self.resultdisp.SetLabel('')
         lat = results.coordinates[0]
         lon = results.coordinates[1]
-        if False:        # set to False for fake address translation
+        if True:        # set to False for fake address translation
             wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
         else:
             if results.formatted_address[0:4] == '5575':
