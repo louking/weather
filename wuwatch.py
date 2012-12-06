@@ -8,6 +8,7 @@
 #   11/05/12    Lou King    Add window persistence
 #   11/16/12    Lou King    Add set station form
 #   11/29/12    Lou King    Fix test code
+#   12/06/12    Lou King    Add persistence of WeatherStation object
 #
 #   Copyright 2012 Lou King
 #
@@ -46,8 +47,8 @@ import motionless
 
 # other
 import wx   # http://wxpython.org/download.php - 2.9 minimum
-from wx.lib.agw.persist.persistencemanager import PersistenceManager
-from wx.lib.agw.persist.persist_handlers import TLWHandler
+from wx.lib.agw.persist.persistencemanager import PersistenceManager, PersistentObject
+from wx.lib.agw.persist.persist_handlers import AbstractHandler, TLWHandler
 import wx.lib.agw.hyperlink as hl
 from wundergroundLogo_4c_horz import wulogo
 
@@ -88,7 +89,56 @@ def SetDcContext(memDC, font=None, color=None):
         memDC.SetTextForeground( color )
 
 ########################################################################
-class WeatherStation():
+class WeatherStationHandler(AbstractHandler):
+########################################################################
+    """
+    handle persistence for WeatherStation object
+    """
+
+    #----------------------------------------------------------------------
+    def __init__(self, pObj):
+    #----------------------------------------------------------------------
+        """
+        handle persistence for WeatherStation object
+
+        :param pObj: PersistenceObject object
+        """
+
+        self.pObj = pObj
+        self.wxstn = pObj.GetWindow()
+        AbstractHandler.__init__(self,pObj)
+
+
+    #----------------------------------------------------------------------
+    def GetKind(self):
+    #----------------------------------------------------------------------
+        """
+        WeatherStation
+        """
+
+        return 'WeatherStation'
+
+    #----------------------------------------------------------------------
+    def Save(self):
+    #----------------------------------------------------------------------
+        """
+        save WeatherStation's state
+        """
+
+        self.wxstn.SaveValue('stnname',self.wxstn.wundergroundstation)
+
+    #----------------------------------------------------------------------
+    def Restore(self):
+    #----------------------------------------------------------------------
+        """
+        save WeatherStation's state
+        """
+
+        self.wxstn.wundergroundstation = self.wxstn.RestoreValue('stnname')
+        x = 3
+
+########################################################################
+class WeatherStation(PersistentObject):
 ########################################################################
     #----------------------------------------------------------------------
     def __init__(self, station=None):
@@ -98,15 +148,41 @@ class WeatherStation():
 
         :param station: name of wunderground station, or None (default 'KMDIJAMS2')
         """
-        if station is None:
-            wundergroundstation = 'KMDIJAMS2'    # TODO: need to look in config file
-        else:
-            wundergroundstation = station
-        self.setstation(wundergroundstation)
 
-        self.debug = True
+        PersistentObject.__init__(self,self,WeatherStationHandler)
+
+        self.debug = False
 
         self.wxstring = ''
+
+        self.pm = PersistenceManager()
+        self.pm.Register(self,persistenceHandler=WeatherStationHandler)
+        check = self.pm.Restore(self)
+
+        # set wundergroundstation to default if it hasn't been defined by self.pm.Restore
+        try:
+            stn = self.wundergroundstation
+            if stn is None:
+                raise AttributeError
+        except AttributeError:
+            self.wundergroundstation = 'KMDIJAMS2'
+
+    #----------------------------------------------------------------------
+    def shutdown(self):
+    #----------------------------------------------------------------------
+        """
+        remember state upon deletion
+        """
+
+        self.pm.SaveAndUnregister(self)
+
+    #----------------------------------------------------------------------
+    def GetName(self):
+    #----------------------------------------------------------------------
+        """
+        override PersistentObject.GetName -- return name of this object
+        """
+        return 'WeatherStation'
 
     #----------------------------------------------------------------------
     def setstation(self,station):
@@ -117,6 +193,7 @@ class WeatherStation():
         :param station: name of wunderground station
         """
         self.wundergroundstation = station
+        self.pm.Save(self)
 
     #----------------------------------------------------------------------
     def gettemp(self):
@@ -155,7 +232,7 @@ class WeatherStation():
         self.url = tree.find('ob_url').text
 
         if self.debug:
-            # pdb.set_trace()
+            pdb.set_trace()
             self.debug = False
 
         temp = int(round(float(tree.find('temp_f').text)))
@@ -366,35 +443,6 @@ class WxDisplay(wx.Frame):
 
         self.panel.SetSizerAndFit(self.vbox)
         self.Fit()
-
-########################################################################
-class StnChoice(wx.Panel):
-########################################################################
-
-    #----------------------------------------------------------------------
-    def __init__(self, parent):
-    #----------------------------------------------------------------------
-        wx.Panel.__init__(self, parent, wx.ID_ANY)
-
-        wx.StaticText(self, wx.ID_ANY, "Select Station:", (15, 50), (75, -1))
-
-        # TBD get possible stations from wunderground
-        stations = {'KMDNEWMA2':'Lake Linganore','KMDIJAMS2':'Holly Hills, Ijamsville, MD'}
-        stnchoices = ['{0} ({1})'.format(stations[stnid],stnid) for stnid in stations.keys()]
-
-        self.ch = wx.Choice(self,wx.ID_ANY,(100, 50),choices = stnchoices)
-        self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.ch)
-        self.chosen = None
-
-    #----------------------------------------------------------------------
-    def EvtChoice(self, event):
-    #----------------------------------------------------------------------
-        self.chosen = event.GetString()
-
-    #----------------------------------------------------------------------
-    def getChoice(self):
-    #----------------------------------------------------------------------
-        return self.chosen
 
 ########################################################################
 class UpdateStn(wx.Frame):
@@ -756,6 +804,7 @@ class MyIcon(wx.TaskBarIcon):
         except:
             pass
 
+        self.wxstn.shutdown()
         self.RemoveIcon()
         self.Destroy()
         self.exiting = True
@@ -825,7 +874,7 @@ class MyApp(wx.App):
 ########################################################################
 
     #----------------------------------------------------------------------
-    def __init__(self,wxstn):
+    def __init__(self,wundergroundstation):
     #----------------------------------------------------------------------
         """
         return MyApp object
@@ -834,6 +883,7 @@ class MyApp(wx.App):
         """
         wx.App.__init__(self, False)
         self.frame = WxDisplay()
+        wxstn = WeatherStation(wundergroundstation)
         self.tbIcon = MyIcon(self.frame,wxstn)
         self.tbIcon.SetIconTimer()
 
@@ -852,10 +902,9 @@ def main():
     if len(args)>0:
         wundergroundstation = args.pop(0)
 
-    stn = WeatherStation(wundergroundstation)
 
     # start the app
-    app = MyApp(stn)
+    app = MyApp(wundergroundstation)
     app.MainLoop()
 
 # ###############################################################################
