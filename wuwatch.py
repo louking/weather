@@ -32,7 +32,7 @@ wuwatch - display weather underground data
 
 # standard
 import pdb
-import optparse
+import argparse
 import urllib2
 import xml.etree.ElementTree as ET
 from cStringIO import StringIO
@@ -53,6 +53,8 @@ import wx.lib.agw.hyperlink as hl
 from wundergroundLogo_4c_horz import wulogo
 
 # home grown
+import version
+from loutilities import wxextensions
 
 # full weather string is in same order as this
 # xml key is before caret (^), display format is after
@@ -75,6 +77,8 @@ DISPLAYFORMATS = [f.split('^')[1] for f in DISPLAYFORMAT.split(',')]
 DISPLAYFIELDS = dict(zip(DISPLAYKEYS,DISPLAYFORMATS))
 
 WUAPIKEY = '4290fe192dd34983'
+
+wuaccess = True         # set by options on startup
 
 ########################################################################
 def SetDcContext(memDC, font=None, color=None):
@@ -131,11 +135,10 @@ class WeatherStationHandler(AbstractHandler):
     def Restore(self):
     #----------------------------------------------------------------------
         """
-        save WeatherStation's state
+        restore WeatherStation's state
         """
 
         self.wxstn.wundergroundstation = self.wxstn.RestoreValue('stnname')
-        x = 3
 
 ########################################################################
 class WeatherStation(PersistentObject):
@@ -445,6 +448,58 @@ class WxDisplay(wx.Frame):
         self.Fit()
 
 ########################################################################
+class UpdateStnHandler(TLWHandler):
+########################################################################
+    """
+    handle persistence for WeatherStation object
+    """
+
+    #----------------------------------------------------------------------
+    def __init__(self, pObj):
+    #----------------------------------------------------------------------
+        """
+        handle persistence for WeatherStation object
+
+        :param pObj: PersistenceObject object
+        """
+
+        self.pObj = pObj
+        self.updstn = pObj.GetWindow()
+        TLWHandler.__init__(self,pObj)
+
+
+    #----------------------------------------------------------------------
+    def GetKind(self):
+    #----------------------------------------------------------------------
+        """
+        UpdateStn
+        """
+
+        return 'UpdateStn'
+
+    #----------------------------------------------------------------------
+    def Save(self):
+    #----------------------------------------------------------------------
+        """
+        save UpdateStn's state
+        """
+
+        TLWHandler.Save(self)
+        self.pObj.SaveValue('items',self.updstn.tc.getitems())
+
+    #----------------------------------------------------------------------
+    def Restore(self):
+    #----------------------------------------------------------------------
+        """
+        restore UpdateStn's state
+        """
+
+        TLWHandler.Restore(self)
+        items = self.pObj.RestoreValue('items')
+        if items is not None:
+            self.updstn.tc.setitems(items)
+
+########################################################################
 class UpdateStn(wx.Frame):
 # cobbled from http://zetcode.com/wxpython/layout/
 ########################################################################
@@ -469,6 +524,7 @@ class UpdateStn(wx.Frame):
 
         self.wxstn = wxstn
         self.tbicon = tbicon
+        self.chosen = None
 
         self.formname = 'set station'
         wx.Frame.__init__(self, parent, wx.ID_ANY, self.formname)
@@ -482,7 +538,7 @@ class UpdateStn(wx.Frame):
 
         self.SetName(self.formname)
         self.pm = PersistenceManager()
-        self.pm.Register(self,persistenceHandler=TLWHandler)
+        self.pm.Register(self,persistenceHandler=UpdateStnHandler)
         check = self.pm.Restore(self)
         if self.debug: print ('Position at UpdateStn.__init__ is {0}'.format(self.GetPosition()))
 
@@ -503,10 +559,10 @@ class UpdateStn(wx.Frame):
         hbox1 = wx.BoxSizer(wx.HORIZONTAL)
         st1 = wx.StaticText(self.panel, label='Enter address')
         st1.SetFont(font)
-        hbox1.Add(st1, flag=wx.RIGHT, border=8)
-        self.tc = wx.TextCtrl(self.panel,style=wx.TE_PROCESS_ENTER)
+        hbox1.Add(st1, proportion=1, flag=wx.RIGHT, border=8)
+        self.tc = wxextensions.AutoTextCtrl(self.panel,style=wx.TE_PROCESS_ENTER)
         self.Bind(wx.EVT_TEXT_ENTER, self.onSearch, self.tc)
-        hbox1.Add(self.tc, proportion=1, border=8)
+        hbox1.Add(self.tc, proportion=3, border=8)
         self.resultdisp = wx.StaticText(self.panel, label='')
         self.resultdisp.SetFont(font)
         hbox1.Add(self.resultdisp, proportion=1, border=8)
@@ -583,10 +639,12 @@ class UpdateStn(wx.Frame):
         if not results.valid_address:
             self.resultdisp.SetLabel('Invalid Address')
             return
+        self.tc.additem(results.formatted_address)
+        self.pm.Save(self)      # update persistence information
         self.resultdisp.SetLabel('')
         lat = results.coordinates[0]
         lon = results.coordinates[1]
-        if True:        # set to False for fake address translation
+        if wuaccess:        # set to False for fake address translation, to avoid use of apikey
             wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
         else:
             if results.formatted_address[0:4] == '5575':
@@ -757,7 +815,6 @@ class MyIcon(wx.TaskBarIcon):
         self.frame.seturl(wxurl)
         self.frame.setlogoandfit()
 
-
     #----------------------------------------------------------------------
     def CreatePopupMenu(self, evt=None):
     #----------------------------------------------------------------------
@@ -790,7 +847,6 @@ class MyIcon(wx.TaskBarIcon):
         Request to set a new active station
         """
         self.updatestn = UpdateStn(self.frame,self.wxstn,self)
-        # self.updatestn = Example(self.frame,'Example')
 
     #----------------------------------------------------------------------
     def OnTaskBarClose(self, evt):
@@ -891,17 +947,13 @@ class MyApp(wx.App):
 def main():
 ################################################################################
 
-    usage = "usage: %prog [options] [<wundergroundstation>]\n\n"
-    usage += "where:\n"
-    usage += "  <wundergroundstation>\toptional weather underground station"
-
-    parser = optparse.OptionParser(usage=usage)
-    (options, args) = parser.parse_args()
+    parser = argparse.ArgumentParser(version='{0} {1}'.format('weather',version.__version__))
+    parser.add_argument('--nowuaccess',help='use option to inhibit wunderground access using apikey',action="store_true")
+    args = parser.parse_args()
+    global wuaccess
+    wuaccess = not args.nowuaccess
 
     wundergroundstation = None
-    if len(args)>0:
-        wundergroundstation = args.pop(0)
-
 
     # start the app
     app = MyApp(wundergroundstation)
