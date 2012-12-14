@@ -38,6 +38,9 @@ import xml.etree.ElementTree as ET
 from cStringIO import StringIO
 import sys
 import string
+import time
+import datetime
+import os
 
 # pypi
 import pygeocoder
@@ -55,6 +58,7 @@ from wundergroundLogo_4c_horz import wulogo
 # home grown
 import version
 from loutilities import wxextensions
+from loutilities import timeu
 
 # full weather string is in same order as this
 # xml key is before caret (^), display format is after
@@ -79,10 +83,11 @@ DISPLAYFIELDS = dict(zip(DISPLAYKEYS,DISPLAYFORMATS))
 WUAPIKEY = '4290fe192dd34983'
 
 wuaccess = True         # set by options on startup
+dtime = timeu.asctime('%x %X %Z')  # display time
 
-########################################################################
+#----------------------------------------------------------------------
 def SetDcContext(memDC, font=None, color=None):
-########################################################################
+#----------------------------------------------------------------------
 # from http://wiki.wxpython.org/WorkingWithImages#Write_Text_to_a_Bitmap
     if font:
         memDC.SetFont( font )
@@ -158,7 +163,7 @@ class WeatherStation(PersistentObject):
 
         self.wxstring = ''
 
-        self.pm = PersistenceManager()
+        self.pm = PersistenceManager.Get()
         self.pm.Register(self,persistenceHandler=WeatherStationHandler)
         check = self.pm.Restore(self)
 
@@ -353,7 +358,7 @@ class WxDisplay(wx.Frame):
         self.Fit()
 
         self.SetName(self.formname)
-        self.pm = PersistenceManager()
+        self.pm = PersistenceManager.Get()
         self.pm.Register(self,persistenceHandler=TLWHandler)
         check = self.pm.Restore(self)
         if self.debug: print ('Position at WxDisplay.__init__ is {0}'.format(self.GetPosition()))
@@ -412,7 +417,7 @@ class WxDisplay(wx.Frame):
         :param text: text to put into the form
         """
 
-        self.st.SetLabel(text)
+        self.st.SetLabelText(text)
 
     #----------------------------------------------------------------------
     def seturl(self, url):
@@ -424,7 +429,7 @@ class WxDisplay(wx.Frame):
         """
 
         self.url.SetURL(url)
-        self.url.SetLabel('wunderground details')
+        self.url.SetLabelText('wunderground details')
 
     #----------------------------------------------------------------------
     def setlogoandfit(self):
@@ -486,6 +491,7 @@ class UpdateStnHandler(TLWHandler):
 
         TLWHandler.Save(self)
         self.pObj.SaveValue('items',self.updstn.tc.getitems())
+        self.pObj.SaveValue('locations',self.updstn.locations)
 
     #----------------------------------------------------------------------
     def Restore(self):
@@ -498,6 +504,10 @@ class UpdateStnHandler(TLWHandler):
         items = self.pObj.RestoreValue('items')
         if items is not None:
             self.updstn.tc.setitems(items)
+            
+        locations = self.pObj.RestoreValue('locations')
+        if locations is not None:
+            self.updstn.locations = locations
 
 ########################################################################
 class UpdateStn(wx.Frame):
@@ -525,6 +535,7 @@ class UpdateStn(wx.Frame):
         self.wxstn = wxstn
         self.tbicon = tbicon
         self.chosen = None
+        self.locations = {}
 
         self.formname = 'set station'
         wx.Frame.__init__(self, parent, wx.ID_ANY, self.formname)
@@ -537,7 +548,7 @@ class UpdateStn(wx.Frame):
         self.Show()
 
         self.SetName(self.formname)
-        self.pm = PersistenceManager()
+        self.pm = PersistenceManager.Get()
         self.pm.Register(self,persistenceHandler=UpdateStnHandler)
         check = self.pm.Restore(self)
         if self.debug: print ('Position at UpdateStn.__init__ is {0}'.format(self.GetPosition()))
@@ -550,75 +561,105 @@ class UpdateStn(wx.Frame):
         """
         self.panel = wx.Panel(self)
 
-        font = wx.SystemSettings_GetFont(wx.SYS_SYSTEM_FONT)
-        font.SetPointSize(9)
+        #font = wx.SystemSettings_GetFont(wx.SYS_SYSTEM_FONT)
+        font = wx.Font(9, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        #font.SetPointSize(9)
+        #fontsm = wx.SystemSettings_GetFont(wx.SYS_SYSTEM_FONT)
+        fontsm = wx.Font(7, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
+        #fontsm.SetPointSize(5)
 
         self.vbox = wx.BoxSizer(wx.VERTICAL)
-
-        # hbox1 - address entry
-        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+        hbndx = 0
+        hbox = {}
+        
+        # address entry
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
         st1 = wx.StaticText(self.panel, label='Enter address')
         st1.SetFont(font)
-        hbox1.Add(st1, proportion=1, flag=wx.RIGHT, border=8)
-        self.tc = wxextensions.AutoTextCtrl(self.panel,style=wx.TE_PROCESS_ENTER)
+        hbox[hbndx].Add(st1, proportion=1, flag=wx.CENTER, border=8)
+        self.tc = wxextensions.AutoTextCtrl(self.panel,style=wx.TE_PROCESS_ENTER,delcallback=self.onDelete)
         self.Bind(wx.EVT_TEXT_ENTER, self.onSearch, self.tc)
-        hbox1.Add(self.tc, proportion=3, border=8)
+        hbox[hbndx].Add(self.tc, proportion=3, border=8)
         self.resultdisp = wx.StaticText(self.panel, label='')
         self.resultdisp.SetFont(font)
-        hbox1.Add(self.resultdisp, proportion=1, border=8)
-        self.vbox.Add(hbox1, flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+        hbox[hbndx].Add(self.resultdisp, flag=wx.CENTER, proportion=1, border=8)
+        self.vbox.Add(hbox[hbndx], flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+        hbndx += 1
 
         self.vbox.Add((-1, 10))
 
-        # hbox2 - station selection
-        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+        # station selection
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
         st3 = wx.StaticText(self.panel, label='Select Station')
         st3.SetFont(font)
-        hbox2.Add(st3, flag=wx.RIGHT, border=8)
+        hbox[hbndx].Add(st3, flag=wx.CENTER|wx.RIGHT, border=8)
         self.stnchoice = wx.Choice(self.panel,choices = [])             # self.stnchoice gets updated in onSearch()
         self.Bind(wx.EVT_CHOICE, self.EvtChoice, self.stnchoice)
-        hbox2.Add(self.stnchoice)
-        self.vbox.Add(hbox2, flag=wx.LEFT | wx.TOP, border=10)
+        hbox[hbndx].Add(self.stnchoice, proportion=3, border=8)
+        self.vbox.Add(hbox[hbndx], flag=wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, border=10)
+        hbndx += 1
 
         self.vbox.Add((-1, 10))
 
-        # hbox3 - OK, Cancel buttons
-        hbox3 = wx.BoxSizer(wx.HORIZONTAL)
+        # OK, Cancel buttons
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
         # OK button
         b1 = wx.Button(self.panel, self.BTN_OK, "OK")
         self.Bind(wx.EVT_BUTTON, self.onOk, b1)
         b1.SetDefault()
         b1.SetSize(b1.GetBestSize())
-        hbox3.Add(b1, border=8)
+        hbox[hbndx].Add(b1, border=8)
         # Cancel button
         b2 = wx.Button(self.panel, self.BTN_CNCL, "Cancel")
         self.Bind(wx.EVT_BUTTON, self.onClose, b2)
         b2.SetSize(b2.GetBestSize())
-        hbox3.Add(b2, border=8)
-        self.vbox.Add(hbox3, flag=wx.LEFT|wx.RIGHT|wx.EXPAND, border=10)
+        hbox[hbndx].Add(b2, border=8)
+        self.vbox.Add(hbox[hbndx], flag=wx.LEFT|wx.RIGHT|wx.EXPAND, border=10)
+        hbndx += 1
 
         self.vbox.Add((-1, 10))
 
-        # hbox4 - map
-        hbox4 = wx.BoxSizer(wx.HORIZONTAL)
+        # map
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
         bmp = wx.EmptyBitmap(400,400)
         dc = wx.MemoryDC()
         dc.SelectObject(bmp)
         dc.SetBackground(wx.Brush("black"))
         dc.SelectObject( wx.NullBitmap )
         self.mapimage = wx.StaticBitmap(self.panel,wx.ID_ANY,bmp)
-        hbox4.Add(self.mapimage)
-        self.vbox.Add(hbox4, flag=wx.CENTER, border=10)
+        hbox[hbndx].Add(self.mapimage)
+        self.vbox.Add(hbox[hbndx], flag=wx.CENTER, border=10)
+        hbndx += 1
 
-        # hbox5 - logo
+        self.vbox.Add((-1, 10))
+
+        # map update time
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
+        #self.updatetime = wx.Button(self.panel, label='')   
+        self.updatetime = wx.lib.buttons.GenButton(self.panel, label='')
+        self.updatetime.SetBezelWidth(0)                #GenButton method
+        self.updatetime.SetUseFocusIndicator(False)     #GenButton method
+        self.updatetime.SetToolTip(wx.ToolTip('Refresh locations'))
+        self.Bind(wx.EVT_BUTTON, self.onRefresh, self.updatetime)
+        self.updatetime.SetFont(fontsm)
+        hbox[hbndx].Add(self.updatetime, proportion=1, border=8)
+        self.vbox.Add(hbox[hbndx], flag=wx.CENTER, border=10)
+        hbndx += 1
+
+        self.vbox.Add((-1, 10))
+
+        # logo
         self.logoimg = wulogo.GetImage()
-        hbox5 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox[hbndx] = wx.BoxSizer(wx.HORIZONTAL)
         panelwidth = 400.0  # based on width of hbox4
         scalefactor = (panelwidth-self.LOGOBORDER*2)/self.logoimg.Width
         scaledimg = self.logoimg.Scale(self.logoimg.Width*scalefactor, self.logoimg.Height*scalefactor, wx.IMAGE_QUALITY_HIGH)
         self.logo = wx.StaticBitmap(self.panel, bitmap=wx.BitmapFromImage(scaledimg))
-        hbox5.Add(self.logo)
-        self.vbox.Add(hbox5,flag=wx.ALL,border=self.LOGOBORDER)
+        hbox[hbndx].Add(self.logo)
+        self.vbox.Add(hbox[hbndx],flag=wx.CENTER, border=self.LOGOBORDER)
+        hbndx += 1
+
+        self.vbox.Add((-1, 10))
 
         self.panel.SetSizerAndFit(self.vbox)
         self.Fit()
@@ -633,26 +674,52 @@ class UpdateStn(wx.Frame):
             results = pygeocoder.Geocoder.geocode(self.tc.GetValue())
             self.tc.SetValue('')
         except:
-            self.resultdisp.SetLabel('Address Not Found')
+            self.resultdisp.SetLabelText('Address Not Found')
             self.tc.SetValue('')
             return
+        
         if not results.valid_address:
-            self.resultdisp.SetLabel('Invalid Address')
+            self.resultdisp.SetLabelText('Invalid Address')
             return
-        self.tc.additem(results.formatted_address)
-        self.pm.Save(self)      # update persistence information
-        self.resultdisp.SetLabel('')
+        
+        # remember this address was used
+        thisaddress = results.formatted_address
+        self.lastaddress = thisaddress
+        self.tc.additem(thisaddress)
+        
+        # clear error label, remember retrieved lat, lon
+        self.resultdisp.SetLabelText('')
         lat = results.coordinates[0]
         lon = results.coordinates[1]
-        if wuaccess:        # set to False for fake address translation, to avoid use of apikey
-            wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
+        
+        # maybe this address has been lookup up recently.  If so, just use whatever was saved from the last lookup
+        MAXBEFOREREFRESH = 90 * (24 * 60 * 60)    # number of seconds in 90 days
+        wulookup = False
+        if (thisaddress in self.locations) and ((time.time() - self.locations[thisaddress]['updatetime']) <= MAXBEFOREREFRESH):
+            wuxml = self.locations[thisaddress]['wuxml']
+            
+        # otherwise we may need to look up the data from wunderground
         else:
-            if results.formatted_address[0:4] == '5575':
-                wu = open('hollyhills.xml')
+            # depending on command line options, either go to wunderground for a lookup or retrieve from a file
+            if wuaccess:        # set to False for fake address translation, to avoid use of apikey
+                wu = urllib2.urlopen('http://api.wunderground.com/api/{0}/geolookup/q/{1},{2}.xml'.format(WUAPIKEY,lat,lon))
+                wulookup = True
             else:
-                wu = open('sandiego.xml')
-        wuxml = wu.readlines()
-        wu.close()
+                if results.formatted_address[0:4] == '5575':
+                    wu = open('hollyhills.xml')
+                else:
+                    wu = open('sandiego.xml')
+            wuxml = wu.readlines()
+            wu.close()
+            
+        # only save data for thisaddress if it was actually looked up through wunderground
+        if wulookup:
+            self.locations[thisaddress] = {}
+            self.locations[thisaddress]['updatetime'] = int(time.time())
+            self.locations[thisaddress]['wuxml'] = wuxml
+        
+        # update persistence information
+        self.pm.Save(self)
 
         # pull station data out of response
         # stations pulled are those <= MAXDISTANCE away from desired address, assuming MINSTATIONS have been selected
@@ -700,19 +767,50 @@ class UpdateStn(wx.Frame):
             fp.close()
             mapimg = wx.ImageFromStream(StringIO(data))
         except:
-            self.resultdisp.SetLabel('Error processing map: {0}'.format(sys.exc_info()))
+            self.resultdisp.SetLabelText('Error processing map: {0}'.format(sys.exc_info()))
             maperror = True
             return
 
-        # map
+        # display map and update time, if no errors
         if not maperror:
             bmp = mapimg.ConvertToBitmap()
             bmp.SetSize(bmp.GetSize())
             self.mapimage.SetBitmap(bmp)
-
+            localtime = timeu.epoch2localdt(self.locations[thisaddress]['updatetime'])
+            time_str = dtime.dt2asc(localtime)
+            self.updatetime.SetLabelText('Last updated {0}'.format(time_str))
+            self.updatetime.SetSize(self.updatetime.GetBestSize())
+            self.updatetime.Refresh()
+        
         self.panel.SetSizerAndFit(self.vbox)
         self.Fit()
 
+    #----------------------------------------------------------------------
+    def onRefresh(self, evt):
+    #----------------------------------------------------------------------
+        """
+        Refresh data in map
+        """
+        # refresh button only works if data was retrieved
+        if self.updatetime.GetLabelText() == '':
+            return
+        
+        thisaddress = self.lastaddress
+        self.locations.pop(thisaddress)     # remove address from saved locations
+        self.tc.SetValue(thisaddress)
+        self.onSearch(evt)
+        
+    #----------------------------------------------------------------------
+    def onDelete(self, deletedaddr):
+    #----------------------------------------------------------------------
+        """
+        this method gets called when an item is deleted from the list
+        
+        :param deletedaddr: item which was deleted
+        """
+        if deletedaddr in self.locations.keys():
+            self.locations.pop(deletedaddr)     # remove address from saved locations
+        
     #----------------------------------------------------------------------
     def onIconize(self, evt):
     #----------------------------------------------------------------------
@@ -864,6 +962,7 @@ class MyIcon(wx.TaskBarIcon):
         self.RemoveIcon()
         self.Destroy()
         self.exiting = True
+        PersistenceManager.Free()
         if self.icon_timer:
             self.icon_timer.Stop()
 
@@ -938,11 +1037,27 @@ class MyApp(wx.App):
         :param wxstn: WeatherStation object
         """
         wx.App.__init__(self, False)
+        self.appName = 'wuwatch'
+
+        # configure persistence file before creating any frames
+        sp = wx.StandardPaths.Get()
+        self.configLoc = sp.GetUserConfigDir()
+        self.persistenceLoc = os.path.join(self.configLoc, self.appName)
+        # win: C:\Users\<userid>\AppData\Roaming\<AppName>
+        # nix: \home\<userid>\<AppName>
+        if not os.path.exists(self.persistenceLoc):
+            os.mkdir(self.configLoc)
+        pm = PersistenceManager.Get()
+        pm.SetPersistenceFile(os.path.join(self.persistenceLoc, 'Persistence_Options'))
+        
+        #print('wx.StandardPaths.Get().GetUserDataDir()={0}'.format(wx.StandardPaths.Get().GetUserDataDir()))
+        #print('wx.GetApp().persistenceLoc={0}'.format(wx.GetApp().persistenceLoc))
+        
         self.frame = WxDisplay()
         wxstn = WeatherStation(wundergroundstation)
         self.tbIcon = MyIcon(self.frame,wxstn)
         self.tbIcon.SetIconTimer()
-
+        
 ################################################################################
 def main():
 ################################################################################
