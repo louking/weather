@@ -1046,7 +1046,7 @@ class MyApp(wx.App):
         # win: C:\Users\<userid>\AppData\Roaming\<AppName>
         # nix: \home\<userid>\<AppName>
         if not os.path.exists(self.persistenceLoc):
-            os.mkdir(self.configLoc)
+            os.mkdir(self.persistenceLoc)
         pm = PersistenceManager.Get()
         pm.SetPersistenceFile(os.path.join(self.persistenceLoc, 'Persistence_Options'))
         
