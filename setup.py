@@ -21,8 +21,11 @@ import pdb
 # home grown
 import version
 
+# other
+
 ez_setup.use_setuptools()
 from setuptools import setup, find_packages
+import py2exe
 
 def globit(dir, filelist):
     outfiles = []
@@ -57,6 +60,7 @@ setup(
         ]),
 
 
+    console=['weather/wuwatch.py'],
     entry_points = {
         'console_scripts': [
             'wuwatch = weather.wuwatch:main',
