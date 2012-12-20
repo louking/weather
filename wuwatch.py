@@ -2,13 +2,14 @@
 ###########################################################################################
 #   wuwatch - display weather underground data
 #
-#   Date		Author		Reason
-#   ----		------		------
-#   10/02/12	Lou King	Create
+#   Date        Author      Reason
+#   ----        ------      ------
+#   10/02/12	Lou King    Create
 #   11/05/12    Lou King    Add window persistence
 #   11/16/12    Lou King    Add set station form
 #   11/29/12    Lou King    Fix test code
 #   12/06/12    Lou King    Add persistence of WeatherStation object
+#   12/18/12    Lou King    Refactor WeatherStation for more general weather data access
 #
 #   Copyright 2012 Lou King
 #
@@ -41,6 +42,7 @@ import string
 import time
 import datetime
 import os
+import logging
 
 # pypi
 import pygeocoder
@@ -54,36 +56,43 @@ from wx.lib.agw.persist.persistencemanager import PersistenceManager, Persistent
 from wx.lib.agw.persist.persist_handlers import AbstractHandler, TLWHandler
 import wx.lib.agw.hyperlink as hl
 from wundergroundLogo_4c_horz import wulogo
+from loutilities import xmldict # http://code.activestate.com/recipes/573463-converting-xml-to-dictionary-and-back/
 
 # home grown
 import version
 from loutilities import wxextensions
 from loutilities import timeu
 
-# full weather string is in same order as this
-# xml key is before caret (^), display format is after
-DISPLAYFORMAT = ('' +
-    'location/full^{0},' +
-    'station_id^Station ID: {0},' +
-    'observation_time^{0},' +
-    'temperature_string^Temperature: {0},' +
-    'wind_string^Wind Speed: {0},' +
-    'dewpoint_string^Dew Point: {0},' +
-    'windchill_string^Wind Chill: {0},' +
-    'pressure_string^Barometric Pressure: {0},' +
-    'precip_1hr_string^Precipitation (current hour): {0},' +
-    'precip_today_string^Precipitation (today): {0},' +
-    'credit^{0}'
-       # NOTE: no comma or + for last string
-    )
-DISPLAYKEYS = [f.split('^')[0] for f in DISPLAYFORMAT.split(',')]
-DISPLAYFORMATS = [f.split('^')[1] for f in DISPLAYFORMAT.split(',')]
-DISPLAYFIELDS = dict(zip(DISPLAYKEYS,DISPLAYFORMATS))
+# weather string is in same order as this
+# xml (or dict) key is before caret (^), display format is after
+# xml (or dict) key can be multiple levels using slash (/) to recurse
+DISPLAYFORMAT = [
+    'location/full^{0}',
+    'station_id^Station ID: {0}',
+    'observation_time^{0}',
+    'temperature_string^Temperature: {0}',
+    'wind_string^Wind Speed: {0}',
+    'dewpoint_string^Dew Point: {0}',
+    'windchill_string^Wind Chill: {0}',
+    'pressure_string^Barometric Pressure: {0}',
+    'precip_1hr_string^Precipitation (current hour): {0}',
+    'precip_today_string^Precipitation (today): {0}',
+    'credit^{0}',
+    ]
+SHORTFORMAT = [
+    'station_id^Station ID: {0}',
+    'observation_time^{0}',
+    'temperature_string^Temperature: {0}',
+    'dewpoint_string^Dew Point: {0}' ,
+    ]
 
 WUAPIKEY = '4290fe192dd34983'
 
 wuaccess = True         # set by options on startup
 dtime = timeu.asctime('%x %X %Z')  # display time
+
+APPNAME = 'wuwatch'
+logger = logging.getLogger(APPNAME)
 
 #----------------------------------------------------------------------
 def SetDcContext(memDC, font=None, color=None):
@@ -156,6 +165,8 @@ class WeatherStation(PersistentObject):
 
         :param station: name of wunderground station, or None (default 'KMDIJAMS2')
         """
+        
+        self.logger = logger.getChild('WeatherStation')
 
         PersistentObject.__init__(self,self,WeatherStationHandler)
 
@@ -204,6 +215,32 @@ class WeatherStation(PersistentObject):
         self.pm.Save(self)
 
     #----------------------------------------------------------------------
+    def gatherdata(self):
+    #----------------------------------------------------------------------
+        """
+        get data from configured weather underground station
+
+        :rtype: dict with all of the data, converted from xml
+        """
+        self.logger.info('gatherdata() begin')
+        
+        # get data from wunderground
+        wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation))
+        wuxml = wu.readlines()
+        wu.close()
+        tree = ET.fromstringlist(wuxml)
+
+        # convert to dict
+        self.wudict = xmldict.ConvertXmlToDict(tree)['current_observation']
+        
+        if self.debug:
+            pdb.set_trace()
+            self.debug = False
+        
+        self.logger.info('gatherdata() end')
+        return self.wudict
+    
+    #----------------------------------------------------------------------
     def gettemp(self):
     #----------------------------------------------------------------------
         """
@@ -212,49 +249,39 @@ class WeatherStation(PersistentObject):
         :rtype: int with current temperature
         """
 
-        # get data from wunderground
-        wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation))
-        wuxml = wu.readlines()
-        wu.close()
-        tree = ET.fromstringlist(wuxml)
-
-        # pull out full weather string
-        self.wxstring = ''
-        fields = list(DISPLAYKEYS) # make a copy
-        while len(fields) > 0:
-            field = fields.pop(0)
-
-            ###
-            subfields = field.split('/')
-            thisel = tree.copy()
-            while len(subfields) > 0:
-                subfield = subfields.pop(0)
-                thisel = thisel.find(subfield)
-            self.wxstring += DISPLAYFIELDS[field].format(thisel.text)
-            ###
-            # self.wxstring += DISPLAYFIELDS[field].format(tree.find(field).text)
-
-            if len(fields) > 0:
-                self.wxstring += '\n'
-
-        self.url = tree.find('ob_url').text
-
-        if self.debug:
-            pdb.set_trace()
-            self.debug = False
-
-        temp = int(round(float(tree.find('temp_f').text)))
+        temp = int(round(float(self.wudict['temp_f'])))
         return temp
 
     #----------------------------------------------------------------------
-    def getwxstring(self):
+    def getwxstring(self, displayformat):
     #----------------------------------------------------------------------
         """
-        get the last full weather string
-
+        get the weather string
+        
+        :param displayformat: format for display, xml (or dict) key is before caret (^), display format is after, xml (or dict) key can be multiple levels using slash (/) to recurse
         :rtype: string containing weather data
         """
-        return self.wxstring
+        displaykeys = [f.split('^')[0] for f in displayformat]
+        displayformats = [f.split('^')[1] for f in displayformat]
+        displayfields = dict(zip(displaykeys,displayformats))
+
+        # pull out full weather string
+        wxstring = ''
+        fields = list(displaykeys) # make a copy
+        while len(fields) > 0:
+            field = fields.pop(0)
+
+            subfields = field.split('/')
+            thisel = self.wudict.copy()
+            while len(subfields) > 0:
+                subfield = subfields.pop(0)
+                thisel = thisel[subfield]
+            wxstring += displayfields[field].format(thisel)
+
+            if len(fields) > 0:
+                wxstring += '\n'
+
+        return wxstring
 
     #----------------------------------------------------------------------
     def geturl(self):
@@ -264,7 +291,8 @@ class WeatherStation(PersistentObject):
 
         :rtype: string containing url
         """
-        return self.url
+        url = self.wudict['ob_url']
+        return url
 
 ########################################################################
 class IconText:
@@ -886,6 +914,8 @@ class MyIcon(wx.TaskBarIcon):
     def __init__(self,frame,wxstn):
     #----------------------------------------------------------------------
 
+        self.logger = logger.getChild('MyIcon')
+
         wx.TaskBarIcon.__init__(self)
         self.frame = frame
         self.wxstn = wxstn
@@ -901,14 +931,15 @@ class MyIcon(wx.TaskBarIcon):
 
         # Set the image
         self.icon = IconText()
+        self.wxstn.gatherdata()
         currtemp = str(self.wxstn.gettemp())
         thisicon = self.icon.settext(currtemp)
-        # self.SetIcon(thisicon,u'Current Temp = {0}\u00B0F'.format(currtemp))
 
         # initialize the form
-        wxstring = self.wxstn.getwxstring()
+        shortstring = self.wxstn.getwxstring(SHORTFORMAT)
+        wxstring = self.wxstn.getwxstring(DISPLAYFORMAT)
         wxurl = self.wxstn.geturl()
-        self.SetIcon(thisicon,wxstring)
+        self.SetIcon(thisicon,shortstring)
         self.frame.settext(wxstring)
         self.frame.seturl(wxurl)
         self.frame.setlogoandfit()
@@ -1011,18 +1042,24 @@ class MyIcon(wx.TaskBarIcon):
         # don't bother if we're trying to exit
         if self.exiting: return
 
+        self.logger.info('UpdateIcon() begin')
+        
         # get current temp, update icon
+        self.wxstn.gatherdata()
         currtemp = str(self.wxstn.gettemp())
         thisicon = self.icon.settext(currtemp)
 
         # update form
-        wxstring = self.wxstn.getwxstring()
+        shortstring = self.wxstn.getwxstring(SHORTFORMAT)
+        wxstring = self.wxstn.getwxstring(DISPLAYFORMAT)
         wxurl = self.wxstn.geturl()
 
-        self.SetIcon(thisicon,wxstring) # TBD - need to abbreviate wxstring
+        self.SetIcon(thisicon,shortstring)
         self.frame.settext(wxstring)
         self.frame.seturl(wxurl)
         self.frame.setlogoandfit()
+        
+        self.logger.info('UpdateIcon() end')
 
 #######################################################################
 class MyApp(wx.App):
@@ -1037,7 +1074,7 @@ class MyApp(wx.App):
         :param wxstn: WeatherStation object
         """
         wx.App.__init__(self, False)
-        self.appName = 'wuwatch'
+        self.appName = APPNAME
 
         # configure persistence file before creating any frames
         sp = wx.StandardPaths.Get()
@@ -1064,15 +1101,27 @@ def main():
 
     parser = argparse.ArgumentParser(version='{0} {1}'.format('weather',version.__version__))
     parser.add_argument('--nowuaccess',help='use option to inhibit wunderground access using apikey',action="store_true")
+    parser.add_argument('-l','--loglevel',help='set logging level (default=%(default)s)',default='WARNING')
+    parser.add_argument('-o','--logfile',help='logging output file (default=stdout)',default=sys.stdout)
     args = parser.parse_args()
+    
+    # act on arguments
     global wuaccess
     wuaccess = not args.nowuaccess
-
+    loglevel = getattr(logging, args.loglevel.upper())
+    if not isinstance(loglevel,int):
+        raise ValueError('Invalid log level: %s' % args.loglevel)
+    logformat = '%(asctime)s %(name)s-%(levelname)s: %(message)s'
+    logging.basicConfig(format=logformat,filename=args.logfile)
+    logger.setLevel(loglevel)
+    logger.info('STARTUP')
+    
     wundergroundstation = None
 
     # start the app
     app = MyApp(wundergroundstation)
     app.MainLoop()
+    logger.info('SHUTDOWN')
 
 # ###############################################################################
 # ###############################################################################
