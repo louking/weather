@@ -94,6 +94,9 @@ dtime = timeu.asctime('%x %X %Z')  # display time
 APPNAME = 'wuwatch'
 logger = logging.getLogger(APPNAME)
 
+# exceptions
+class wundergroundAccessFailure(Exception): pass
+
 #----------------------------------------------------------------------
 def SetDcContext(memDC, font=None, color=None):
 #----------------------------------------------------------------------
@@ -171,6 +174,7 @@ class WeatherStation(PersistentObject):
         PersistentObject.__init__(self,self,WeatherStationHandler)
 
         self.debug = False
+        self.failedlastretrieve = False    # track wunderground access failures for appropriate logging
 
         self.wxstring = ''
 
@@ -222,10 +226,29 @@ class WeatherStation(PersistentObject):
 
         :rtype: dict with all of the data, converted from xml
         """
+        
         self.logger.info('gatherdata() begin')
         
         # get data from wunderground
-        wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation))
+        tries = 0
+        TIMEOUT = 5    # seconds
+        NTRIES = 5
+        retriesexceeded = True
+        while tries < NTRIES:
+            try:
+                wu = urllib2.urlopen('http://api.wunderground.com/weatherstation/WXCurrentObXML.asp?ID={0}'.format(self.wundergroundstation),timeout=TIMEOUT)
+                if self.failedlastretrieve:
+                    self.logger.warning('gatherdata(): urlopen success')
+                    self.failedlastretrieve = False
+                retriesexceeded = False
+                break
+            except urllib2.URLError, e:
+                self.logger.info('gatherdata(): urlopen failure: {0}'.format(e))
+            tries += 1
+        if retriesexceeded:
+            self.logger.warning('gatherdata(): urlopen failure - retries exceeded')
+            self.failedlastretrieve = True
+            raise wundergroundAccessFailure
         wuxml = wu.readlines()
         wu.close()
         tree = ET.fromstringlist(wuxml)
@@ -1045,19 +1068,25 @@ class MyIcon(wx.TaskBarIcon):
         self.logger.info('UpdateIcon() begin')
         
         # get current temp, update icon
-        self.wxstn.gatherdata()
-        currtemp = str(self.wxstn.gettemp())
-        thisicon = self.icon.settext(currtemp)
-
-        # update form
-        shortstring = self.wxstn.getwxstring(SHORTFORMAT)
-        wxstring = self.wxstn.getwxstring(DISPLAYFORMAT)
-        wxurl = self.wxstn.geturl()
-
-        self.SetIcon(thisicon,shortstring)
-        self.frame.settext(wxstring)
-        self.frame.seturl(wxurl)
-        self.frame.setlogoandfit()
+        # handle wundergroundAccessFailure exception - retry will happen naturally when ID_ICON_TIMER expires
+        try:
+            self.wxstn.gatherdata()
+            currtemp = str(self.wxstn.gettemp())
+            thisicon = self.icon.settext(currtemp)
+    
+            # update form
+            shortstring = self.wxstn.getwxstring(SHORTFORMAT)
+            wxstring = self.wxstn.getwxstring(DISPLAYFORMAT)
+            wxurl = self.wxstn.geturl()
+    
+            self.SetIcon(thisicon,shortstring)
+            self.frame.settext(wxstring)
+            self.frame.seturl(wxurl)
+            self.frame.setlogoandfit()
+        
+        # skip this update, let timer expire for next update
+        except wundergroundAccessFailure:
+            pass
         
         self.logger.info('UpdateIcon() end')
 
