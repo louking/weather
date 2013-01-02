@@ -1131,7 +1131,7 @@ def main():
     parser = argparse.ArgumentParser(version='{0} {1}'.format('weather',version.__version__))
     parser.add_argument('--nowuaccess',help='use option to inhibit wunderground access using apikey',action="store_true")
     parser.add_argument('-l','--loglevel',help='set logging level (default=%(default)s)',default='WARNING')
-    parser.add_argument('-o','--logfile',help='logging output file (default=stdout)',default=sys.stdout)
+    parser.add_argument('-o','--logfile',help='logging output file (default=stdout)',default=None)
     args = parser.parse_args()
     
     # act on arguments
@@ -1141,7 +1141,11 @@ def main():
     if not isinstance(loglevel,int):
         raise ValueError('Invalid log level: %s' % args.loglevel)
     logformat = '%(asctime)s %(name)s-%(levelname)s: %(message)s'
-    logging.basicConfig(format=logformat,filename=args.logfile)
+    if args.logfile:
+        logging.basicConfig(format=logformat,filename=args.logfile)
+    else:
+        logging.basicConfig(format=logformat)
+        
     logger.setLevel(loglevel)
     logger.info('STARTUP')
     
